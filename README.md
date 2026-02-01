@@ -6,7 +6,7 @@ Curated by HappyHippo.ai, contributed by the community.
 
 ## What Are Community Standards?
 
-This repository contains **battle-tested patterns** from developers using EquilateralAgents in production. These aren't universal principles (those live in [Open Standards](https://github.com/JamesFord-HappyHippo/EquilateralAgents-Open-Standards)) - they're proven practices that work in specific contexts.
+This repository contains **battle-tested patterns** from developers using EquilateralAgents in production. These aren't universal principles (those live in [Open Standards](https://github.com/Equilateral-AI/EquilateralAgents-Open-Standards)) - they're proven practices that work in specific contexts.
 
 ## Structure
 
@@ -27,12 +27,12 @@ community-standards/
 **Option 1: Git Submodule (Recommended)**
 ```bash
 cd your-project
-git submodule add https://github.com/JamesFord-HappyHippo/EquilateralAgents-Community-Standards.git .standards-community
+git submodule add https://github.com/Equilateral-AI/EquilateralAgents-Community-Standards.git .standards-community
 ```
 
 **Option 2: Clone Separately**
 ```bash
-git clone https://github.com/JamesFord-HappyHippo/EquilateralAgents-Community-Standards.git
+git clone https://github.com/Equilateral-AI/EquilateralAgents-Community-Standards.git
 ```
 
 ### Reference in Your AI Assistant

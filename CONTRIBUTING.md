@@ -111,7 +111,7 @@ tags:
 
 ## Schema Reference
 
-Full schema documentation: [equilateral-standards-yaml/SCHEMA.yaml](https://github.com/JamesFord-HappyHippo/equilateral-standards-yaml/blob/main/SCHEMA.yaml)
+Full schema documentation: [equilateral-standards-yaml/SCHEMA.yaml](https://github.com/Equilateral-AI/equilateral-standards-yaml/blob/main/SCHEMA.yaml)
 
 ## Validation
 
