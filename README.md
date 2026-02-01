@@ -12,10 +12,12 @@ This repository contains **battle-tested patterns** from developers using Equila
 
 ```
 community-standards/
-├── patterns/           # Recurring solutions to common problems
-├── examples/           # Real-world implementation examples
-├── workflows/          # Community workflow patterns
-└── integrations/       # Integration patterns with tools/services
+├── TEMPLATE.yaml       # Copy this to start a new pattern
+├── CONTRIBUTING.md     # Submission guidelines
+├── patterns/           # Recurring solutions (*.yaml)
+├── examples/           # Real-world implementations (*.yaml)
+├── workflows/          # Community workflow patterns (*.yaml)
+└── integrations/       # Integration patterns (*.yaml)
 ```
 
 ## How to Use
@@ -49,66 +51,35 @@ Check community patterns before implementing:
 
 Found a pattern that works? Share it with the community!
 
-### Contribution Guidelines
+### YAML Format Required
 
-**Good candidates for community standards:**
+All submissions must use **YAML format** for machine parsing by AI agents.
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for full details and the [TEMPLATE.yaml](TEMPLATE.yaml) to get started.
+
+### Quick Start
+
+1. **Fork this repo**
+2. **Copy the template:**
+   ```bash
+   cp TEMPLATE.yaml patterns/your-pattern-id.yaml
+   ```
+3. **Edit your pattern** - fill in rules, anti-patterns, examples
+4. **Submit PR** with title: "Pattern: [Your Pattern Name]"
+
+### Good Candidates
+
 - ✅ Solved a real production problem
 - ✅ Used successfully in multiple projects
 - ✅ Specific enough to be actionable
-- ✅ General enough to apply to others
-- ✅ Includes working example code
+- ✅ Follows YAML schema exactly
 
-**Not good candidates:**
+### Not Good Candidates
+
+- ❌ Markdown format (use YAML)
 - ❌ Theoretical/untested approaches
 - ❌ Company-specific implementations
 - ❌ Universal principles (submit to Open Standards instead)
-- ❌ Framework-specific docs (link to official docs instead)
-
-### How to Submit
-
-1. **Fork this repo**
-2. **Add your pattern:**
-   ```bash
-   # Create pattern file
-   touch patterns/your-pattern-name.md
-
-   # Add example (optional but encouraged)
-   mkdir -p examples/your-pattern-name
-   touch examples/your-pattern-name/example.js
-   ```
-
-3. **Use this template:**
-   ```markdown
-   # Pattern Name
-
-   ## Problem
-   [What problem does this solve?]
-
-   ## Context
-   [When should you use this?]
-
-   ## Solution
-   [How to implement it]
-
-   ```language
-   [Code example]
-   ```
-
-   ## Trade-offs
-   [What are the downsides?]
-
-   ## Real-World Usage
-   - Used in [project/company] for [use case]
-   - Handles [specific metrics] successfully
-
-   ## See Also
-   - [Related patterns]
-   ```
-
-4. **Submit PR**
-   - Title: "Pattern: [Your Pattern Name]"
-   - Description: Brief overview of the problem it solves
-   - Tag: `pattern`, `example`, `workflow`, or `integration`
 
 ### Review Process
 

@@ -1,0 +1,78 @@
+# Community Standards Template
+# Copy this file and rename to: your-pattern-id.yaml
+# Place in appropriate directory: patterns/, examples/, workflows/, or integrations/
+
+id: your-pattern-id              # REQUIRED: Unique, kebab-case, must match filename
+category: patterns               # REQUIRED: patterns | examples | workflows | integrations
+priority: 20                     # REQUIRED: 10=critical, 20=important, 30=advisory
+updated: 2026-01-28              # REQUIRED: ISO date (YYYY-MM-DD)
+
+# Optional metadata
+title: Your Pattern Name
+description: |
+  Brief description of what this pattern solves and when to use it.
+  Keep it to 1-3 sentences.
+
+# REQUIRED: Actionable rules
+rules:
+  - action: ALWAYS               # ALWAYS | NEVER | USE | PREFER | AVOID
+    rule: Do this specific thing when X happens
+  - action: NEVER
+    rule: Avoid doing Y in Z context
+  - action: USE
+    rule: Recommended approach for handling W
+    applies_to:                  # Optional: file patterns
+      - "src/**/*.js"
+      - "**/*.ts"
+
+# REQUIRED: What NOT to do
+anti_patterns:
+  - "Bad pattern 1: example code or description"
+  - "Bad pattern 2: another thing to avoid"
+
+# Optional: Code examples
+examples:
+  correct_implementation: |
+    // Good example
+    function doTheThing() {
+      // Correct approach
+    }
+  wrong_implementation: |
+    // Bad example - don't do this
+    function doTheThing() {
+      // Anti-pattern
+    }
+
+# Optional: Cost or performance impact
+cost_impact:
+  bad_pattern: "$X/month or Y% slower"
+  good_pattern: "$0 or Z% faster"
+
+# Optional: Background for humans (not injected to agents)
+context: |
+  ## Problem
+  What specific problem does this solve?
+
+  ## When to Use
+  - Specific scenarios where this applies
+  - Team/project size considerations
+
+  ## Trade-offs
+  - What's the cost of using this pattern?
+  - When should you NOT use it?
+
+  ## Real-World Validation
+  - Project: [Name]
+  - Scale: [metrics]
+  - Results: [outcomes]
+
+# Optional: Related patterns
+related:
+  - other-pattern-id
+  - another-pattern-id
+
+# Optional: Tags for filtering
+tags:
+  - tag1
+  - tag2
+  - tag3
