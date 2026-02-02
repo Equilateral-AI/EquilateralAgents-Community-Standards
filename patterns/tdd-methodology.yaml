@@ -1,0 +1,89 @@
+id: tdd-methodology
+category: patterns
+priority: 20
+updated: 2026-02-02
+
+title: Test-Driven Development Methodology
+description: |
+  Red-Green-Refactor cycle, the three laws of TDD, AAA test structure,
+  and test prioritization. When to use TDD and when not to.
+
+rules:
+  - action: ALWAYS
+    rule: "Watch the test fail first (RED) before writing production code - a test that passes immediately proves nothing"
+  - action: ALWAYS
+    rule: "Write only the minimum code to make the failing test pass (GREEN) - no speculative code or premature optimization"
+  - action: ALWAYS
+    rule: "All tests must stay green during refactoring - if a test breaks during refactor, you introduced a regression"
+  - action: ALWAYS
+    rule: "Structure tests with Arrange-Act-Assert (AAA) - setup, execute, verify as distinct sections"
+  - action: ALWAYS
+    rule: "Test names describe expected behavior - tests are documentation (e.g., 'should reject empty email')"
+  - action: ALWAYS
+    rule: "For bug fixes, write the failing test that reproduces the bug first, then fix the code"
+  - action: ALWAYS
+    rule: "Commit after each successful refactor step to create a save point"
+  - action: NEVER
+    rule: "Write tests after code - the test-first constraint drives better API design and catches assumptions"
+  - action: NEVER
+    rule: "Test implementation details (private methods, internal state) - test behavior through the public interface"
+  - action: NEVER
+    rule: "Skip the RED phase - you must see the test fail to confirm it tests what you think it tests"
+  - action: PREFER
+    rule: "One assertion per test - keeps tests focused and failure messages clear"
+  - action: PREFER
+    rule: "Prioritize tests: happy path first, then error cases, then edge cases, then performance"
+
+anti_patterns:
+  - "Writing production code without a failing test driving it"
+  - "Multiple assertions testing different behaviors in a single test"
+  - "Over-engineering the initial GREEN implementation - just make it pass, optimize later"
+  - "Testing private methods or internal data structures instead of public behavior"
+  - "Applying TDD to exploratory prototyping - spike first, then TDD the real implementation"
+
+examples:
+  tdd_cycle: |
+    # RED: Write failing test
+    def test_add_returns_sum():
+        assert add(2, 3) == 5  # Fails - add() doesn't exist yet
+
+    # GREEN: Minimal code to pass
+    def add(a, b):
+        return a + b  # Just enough to pass
+
+    # REFACTOR: Improve (tests stay green)
+    def add(a: int, b: int) -> int:
+        """Add two integers."""
+        return a + b
+
+  bug_fix_tdd: |
+    # Step 1: Write test that reproduces the bug
+    def test_handles_negative_quantity():
+        with pytest.raises(ValueError):
+            create_order(item="widget", quantity=-1)  # Bug: this currently succeeds
+
+    # Step 2: Fix the code to make test pass
+    def create_order(item, quantity):
+        if quantity <= 0:
+            raise ValueError(f"quantity must be positive, got {quantity}")
+        # ... rest of implementation
+
+context: |
+  Test-Driven Development is a design methodology, not just a testing technique.
+  The test-first constraint forces explicit API design before implementation.
+  The RED phase confirms the test actually tests something meaningful. The GREEN
+  phase prevents over-engineering by enforcing minimum viable implementation.
+  The REFACTOR phase improves structure while the test suite provides a safety
+  net. TDD is most valuable for new features, bug fixes, and complex logic.
+  It is less valuable for UI layout, exploratory prototyping, and trivial CRUD.
+
+related:
+  - code-review-standards
+
+tags:
+  - testing
+  - tdd
+  - methodology
+  - red-green-refactor
+  - test-first
+  - aaa-pattern

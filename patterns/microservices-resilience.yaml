@@ -1,0 +1,101 @@
+id: microservices-resilience
+category: patterns
+priority: 15
+updated: 2026-02-02
+
+title: Microservices Architecture & Resilience
+description: |
+  Service decomposition, database-per-service, saga pattern for distributed
+  transactions, event-driven communication, circuit breakers, and API
+  gateway aggregation patterns.
+
+rules:
+  - action: ALWAYS
+    rule: "Each microservice owns its data - no shared databases between services"
+  - action: ALWAYS
+    rule: "Use circuit breakers on all inter-service calls with failure threshold, recovery timeout, and half-open testing"
+  - action: ALWAYS
+    rule: "Define compensating actions for every step in a distributed transaction (saga pattern) - execute in reverse on failure"
+  - action: ALWAYS
+    rule: "Implement health checks (liveness and readiness probes) on every service for orchestrator integration"
+  - action: ALWAYS
+    rule: "Use versioned, backward-compatible API contracts between services - breaking changes require coordinated migration"
+  - action: ALWAYS
+    rule: "Design for network failure - set timeouts on all HTTP clients and handle partial responses gracefully"
+  - action: NEVER
+    rule: "Create a distributed monolith - services that must deploy together, share databases, or have synchronous call chains"
+  - action: NEVER
+    rule: "Build chatty services with many fine-grained inter-service calls per request - batch or merge into one service"
+  - action: NEVER
+    rule: "Start with microservices before understanding the domain - start monolith, decompose when boundaries are proven"
+  - action: NEVER
+    rule: "Assume reliable network - every inter-service call can fail, timeout, or return partial data"
+  - action: PREFER
+    rule: "Use async event-driven communication (Kafka, SQS) over synchronous REST for cross-service writes"
+  - action: PREFER
+    rule: "Decompose services by business capability or DDD bounded context, not by technical layer"
+  - action: PREFER
+    rule: "Implement distributed tracing (OpenTelemetry) to track requests across service boundaries"
+
+anti_patterns:
+  - "Shared database between services - tight coupling that defeats the purpose of microservices"
+  - "Synchronous call chains A->B->C->D where failure in D cascades to A"
+  - "No compensation logic for distributed transactions - cannot undo failed multi-service operations"
+  - "Premature microservices - splitting before understanding domain boundaries creates wrong service cuts"
+  - "Chatty services making 10+ inter-service calls per user request - high latency and failure probability"
+  - "No circuit breakers - one slow service causes thread pool exhaustion across the entire system"
+
+examples:
+  saga_pattern: |
+    # Each step has an action and compensation
+    steps = [
+        SagaStep("create_order",     action=create,   compensation=cancel_order),
+        SagaStep("reserve_inventory", action=reserve,  compensation=release_inventory),
+        SagaStep("process_payment",   action=charge,   compensation=refund_payment),
+        SagaStep("confirm_order",     action=confirm,  compensation=cancel_confirmation),
+    ]
+    # On failure at step N: compensate steps N-1, N-2, ..., 0 in reverse
+
+  event_driven: |
+    # Order Service publishes event (fire and forget)
+    await event_bus.publish(OrderCreatedEvent(order_id, customer_id, items, total))
+
+    # Inventory Service subscribes and reacts independently
+    async def handle_order_created(event):
+        await reserve_inventory(event.order_id, event.items)
+
+  api_gateway_aggregation: |
+    # Gateway aggregates from multiple services, handles partial failures
+    order, payment, inventory = await asyncio.gather(
+        call_order_service(order_id),
+        call_payment_service(order_id),
+        call_inventory_service(order_id),
+        return_exceptions=True
+    )
+    result = {"order": order}
+    if not isinstance(payment, Exception): result["payment"] = payment
+    if not isinstance(inventory, Exception): result["inventory"] = inventory
+
+context: |
+  Microservices architecture patterns for distributed systems. The database-per-
+  service rule is the foundational constraint - without it, services are coupled
+  through shared state. The saga pattern replaces distributed transactions (2PC)
+  with a sequence of local transactions and compensating actions. Event-driven
+  communication decouples producers from consumers. Circuit breakers prevent
+  cascade failures. API gateways aggregate data from multiple services while
+  handling partial failures gracefully. Start with a monolith and extract
+  services when domain boundaries become clear.
+
+related:
+  - error-handling-resilience
+  - architecture-patterns
+  - deployment-safety-patterns
+
+tags:
+  - microservices
+  - distributed-systems
+  - saga
+  - circuit-breaker
+  - event-driven
+  - api-gateway
+  - resilience

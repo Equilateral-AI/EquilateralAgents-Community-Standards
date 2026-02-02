@@ -1,0 +1,104 @@
+id: container-security-patterns
+category: patterns
+priority: 15
+updated: 2026-02-02
+
+title: Container & Docker Security Patterns
+description: |
+  Multi-stage builds, non-root execution, secrets management, image
+  optimization, health checks, and resource limits for production
+  container deployments.
+
+rules:
+  - action: ALWAYS
+    rule: "Run containers as a non-root user - create a dedicated user with specific UID/GID and use USER directive"
+  - action: ALWAYS
+    rule: "Use multi-stage builds to separate build dependencies from runtime - production image should not contain compilers or build tools"
+  - action: ALWAYS
+    rule: "Copy dependency manifests (package.json, requirements.txt) before source code for optimal layer caching"
+  - action: ALWAYS
+    rule: "Include a HEALTHCHECK directive in production Dockerfiles for container orchestration monitoring"
+  - action: ALWAYS
+    rule: "Set resource limits (CPU and memory) on all production containers to prevent resource exhaustion"
+  - action: ALWAYS
+    rule: "Create a comprehensive .dockerignore file excluding .git, node_modules, .env, test files, and documentation"
+  - action: NEVER
+    rule: "Store secrets in ENV instructions or Dockerfile layers - use Docker secrets, BuildKit secret mounts, or external secret managers"
+  - action: NEVER
+    rule: "Use latest tag for base images in production - pin specific versions for reproducible builds"
+  - action: NEVER
+    rule: "Run containers as root in production - even if the process doesn't need root, a vulnerability could escalate"
+  - action: PREFER
+    rule: "Use Alpine or distroless base images for production to minimize attack surface and image size"
+  - action: PREFER
+    rule: "Consolidate RUN commands to minimize layers, but keep dependency install separate from source copy for caching"
+  - action: PREFER
+    rule: "Use BuildKit cache mounts (--mount=type=cache) for package manager caches to speed builds without bloating images"
+
+anti_patterns:
+  - "Production images containing build tools (gcc, make, npm devDependencies) - increases attack surface and image size"
+  - "Hardcoded secrets in ENV or ARG instructions - visible in docker history and image layers"
+  - "Using latest tag for base images causing non-reproducible builds across environments"
+  - "Running as root when the application doesn't require elevated privileges"
+  - "No .dockerignore causing entire .git directory, node_modules, and .env files to be sent as build context"
+  - "No health checks causing orchestrators to route traffic to unhealthy containers"
+
+examples:
+  multi_stage_build: |
+    FROM node:18-alpine AS build
+    WORKDIR /app
+    COPY package*.json ./
+    RUN npm ci
+    COPY . .
+    RUN npm run build && npm prune --production
+
+    FROM node:18-alpine AS runtime
+    RUN addgroup -g 1001 -S appgroup && adduser -S appuser -u 1001 -G appgroup
+    WORKDIR /app
+    COPY --from=build --chown=appuser:appgroup /app/dist ./dist
+    COPY --from=build --chown=appuser:appgroup /app/node_modules ./node_modules
+    USER appuser
+    EXPOSE 3000
+    HEALTHCHECK --interval=30s --timeout=10s --retries=3 CMD curl -f http://localhost:3000/health || exit 1
+    CMD ["node", "dist/index.js"]
+
+  buildkit_secrets: |
+    # Build-time secrets (never stored in layers)
+    FROM alpine
+    RUN --mount=type=secret,id=api_key \
+        API_KEY=$(cat /run/secrets/api_key) && \
+        ./configure --api-key="$API_KEY"
+
+  resource_limits: |
+    services:
+      app:
+        deploy:
+          resources:
+            limits:
+              cpus: '0.5'
+              memory: 512M
+            reservations:
+              cpus: '0.25'
+              memory: 256M
+
+context: |
+  Container security and optimization patterns for Docker and OCI-compatible
+  runtimes. Multi-stage builds are the primary mechanism for keeping production
+  images small and secure. Non-root execution prevents container breakout from
+  escalating to host-level access. Layer caching order matters - copy dependency
+  manifests first since they change less frequently than source code. Health
+  checks enable orchestrators (Docker Compose, Kubernetes, ECS) to detect
+  unhealthy containers and route traffic away.
+
+related:
+  - secrets-management-patterns
+  - deployment-safety-patterns
+
+tags:
+  - docker
+  - containers
+  - security
+  - multi-stage-build
+  - health-checks
+  - image-optimization
+  - devops

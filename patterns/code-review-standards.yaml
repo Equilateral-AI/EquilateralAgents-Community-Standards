@@ -1,0 +1,93 @@
+id: code-review-standards
+category: patterns
+priority: 20
+updated: 2026-02-02
+
+title: Code Review Standards & Checklist
+description: |
+  Six-step review process covering functionality, security, performance,
+  code quality, tests, and documentation. Structured approach to
+  constructive and thorough code reviews.
+
+rules:
+  - action: ALWAYS
+    rule: "Follow the 6-step review: understand context, review functionality, review code quality, review security, review performance, review tests"
+  - action: ALWAYS
+    rule: "Check for input validation, SQL injection, XSS, hardcoded secrets, and authentication/authorization on every review"
+  - action: ALWAYS
+    rule: "Verify new code has tests, tests cover edge cases, and all tests pass before approving"
+  - action: ALWAYS
+    rule: "Check for N+1 query problems, unnecessary loops, missing indexes, and memory leaks in performance review"
+  - action: ALWAYS
+    rule: "Verify commit messages are clear, no merge conflicts, branch is up to date, and no unnecessary files committed"
+  - action: NEVER
+    rule: "Approve a PR without reading the code - rubber-stamp reviews miss bugs and security issues"
+  - action: NEVER
+    rule: "Give vague feedback like 'this looks wrong' - explain what the problem is, why, and suggest a fix"
+  - action: NEVER
+    rule: "Ignore security issues because they seem minor - small security gaps compound into exploitable vulnerabilities"
+  - action: PREFER
+    rule: "Review small PRs (under 400 lines) - large PRs get superficial reviews and miss more bugs"
+  - action: PREFER
+    rule: "Check tests first to understand intent, then review implementation against the test expectations"
+  - action: PREFER
+    rule: "Use automated tools (linters, formatters, security scanners) to catch style issues so reviews focus on logic"
+
+anti_patterns:
+  - "Rubber-stamping reviews - approving without reading defeats the purpose"
+  - "Reviewing when tired or distracted - miss critical issues"
+  - "Vague feedback without explanation or suggested fix"
+  - "Focusing on style nits while missing logic errors or security issues"
+  - "Reviewing 1000+ line PRs in a single session - diminishing returns after ~400 lines"
+
+examples:
+  review_checklist: |
+    Pre-Review:
+    [ ] Read PR description and linked issues
+    [ ] Check CI/CD status
+
+    Functionality:
+    [ ] Solves stated problem
+    [ ] Edge cases handled
+    [ ] Error handling appropriate
+
+    Security:
+    [ ] Inputs validated
+    [ ] No SQL injection, XSS
+    [ ] No hardcoded secrets
+    [ ] Auth/authz correct
+
+    Performance:
+    [ ] No N+1 queries
+    [ ] No unnecessary loops
+    [ ] Caching appropriate
+
+    Code Quality:
+    [ ] Readable and clear
+    [ ] Functions small and focused
+    [ ] No dead code
+
+    Tests:
+    [ ] New code has tests
+    [ ] Edge cases covered
+    [ ] All tests pass
+
+context: |
+  Code review is a quality gate that catches bugs, security issues, and
+  design problems before they reach production. The six-step process ensures
+  comprehensive coverage. Security review is non-optional - most vulnerabilities
+  are introduced through code changes that weren't reviewed for security
+  implications. Small PRs (under 400 lines) get more thorough reviews.
+  Constructive feedback explains the problem, the impact, and a suggested fix.
+
+related:
+  - tdd-methodology
+  - owasp-api-security
+  - web-application-security
+
+tags:
+  - code-review
+  - quality
+  - checklist
+  - security
+  - best-practices

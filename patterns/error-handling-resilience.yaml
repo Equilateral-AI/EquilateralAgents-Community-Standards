@@ -1,0 +1,105 @@
+id: error-handling-resilience
+category: patterns
+priority: 10
+updated: 2026-02-02
+
+title: Error Handling & Resilience Patterns
+description: |
+  Circuit breakers, retry with backoff, Result types, error aggregation,
+  and graceful degradation. Custom exception hierarchies and structured
+  error context for distributed systems.
+
+rules:
+  - action: ALWAYS
+    rule: "Create a custom exception hierarchy rooted in a base ApplicationError with code, message, and details fields"
+  - action: ALWAYS
+    rule: "Categorize errors as recoverable (network timeout, rate limit) vs unrecoverable (OOM, programming bug) and handle differently"
+  - action: ALWAYS
+    rule: "Include context in errors - what failed, why, and how to fix it - with structured fields (code, details, timestamp)"
+  - action: ALWAYS
+    rule: "Implement circuit breakers on all external service calls with failure threshold, recovery timeout, and half-open testing"
+  - action: ALWAYS
+    rule: "Use exponential backoff with jitter for retries - never fixed-interval retries on transient failures"
+  - action: ALWAYS
+    rule: "Chain exceptions to preserve the full error trail - use raise ... from e (Python) or cause chaining (Java/Go)"
+  - action: ALWAYS
+    rule: "Clean up resources on error using try-finally, context managers, or defer - never leave connections or files open"
+  - action: NEVER
+    rule: "Catch broadly with bare except or catch(Exception) and swallow - either handle specifically or re-raise"
+  - action: NEVER
+    rule: "Log an error and also re-throw it - this creates duplicate log entries across the call stack"
+  - action: PREFER
+    rule: "Use Result/Either types for expected failures (validation, not-found) and exceptions for unexpected failures (bugs, OOM)"
+  - action: PREFER
+    rule: "Aggregate multiple validation errors and return them all at once rather than failing on the first error"
+  - action: PREFER
+    rule: "Implement graceful degradation with fallback chains for non-critical functionality"
+
+anti_patterns:
+  - "Empty catch blocks that silently swallow errors - hides bugs and makes debugging impossible"
+  - "Catching Exception broadly instead of specific error types - masks programming bugs"
+  - "Logging the error and re-throwing it at every level - creates duplicate log noise"
+  - "Fixed-interval retries without backoff - hammers failing services and delays recovery"
+  - "No circuit breaker on external calls - one slow service cascades failure to entire system"
+  - "Generic error messages like 'Something went wrong' without error codes or context"
+  - "Returning error codes as integers instead of typed errors - requires caller to check magic numbers"
+
+examples:
+  circuit_breaker: |
+    class CircuitBreaker:
+        def __init__(self, failure_threshold=5, recovery_timeout=30, success_threshold=2):
+            self.failure_threshold = failure_threshold
+            self.recovery_timeout = recovery_timeout
+            self.success_threshold = success_threshold
+            self.state = 'CLOSED'  # CLOSED -> OPEN -> HALF_OPEN -> CLOSED
+
+        async def call(self, func, *args):
+            if self.state == 'OPEN':
+                if time_since_open > self.recovery_timeout:
+                    self.state = 'HALF_OPEN'
+                else:
+                    raise CircuitBreakerOpenError()
+            try:
+                result = await func(*args)
+                self._on_success()
+                return result
+            except Exception:
+                self._on_failure()
+                raise
+
+  retry_with_backoff: |
+    @retry(max_attempts=3, backoff_factor=2.0, exceptions=(NetworkError,))
+    def fetch_data(url):
+        response = requests.get(url, timeout=5)
+        response.raise_for_status()
+        return response.json()
+
+  result_type: |
+    type Result<T, E> = { ok: true; value: T } | { ok: false; error: E };
+
+    function parseJSON<T>(json: string): Result<T, SyntaxError> {
+        try { return { ok: true, value: JSON.parse(json) }; }
+        catch (e) { return { ok: false, error: e as SyntaxError }; }
+    }
+
+context: |
+  Resilience patterns for distributed systems and external service integration.
+  Circuit breakers prevent cascade failures by failing fast when a dependency is
+  unhealthy. Retry with exponential backoff handles transient failures without
+  overwhelming recovering services. Result types make error handling explicit in
+  the type system. Error aggregation improves UX by reporting all validation
+  issues at once. These patterns complement the development-principles standard
+  which covers fail-fast philosophy and error-first design.
+
+related:
+  - development-principles
+  - microservices-resilience
+
+tags:
+  - error-handling
+  - resilience
+  - circuit-breaker
+  - retry
+  - result-type
+  - distributed-systems
+  - fault-tolerance

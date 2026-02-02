@@ -1,0 +1,98 @@
+id: database-design-patterns
+category: patterns
+priority: 15
+updated: 2026-02-02
+
+title: Database Design & Query Optimization
+description: |
+  Schema design, indexing strategy, N+1 prevention, zero-downtime
+  migrations, and primary key selection. Technology-agnostic patterns
+  for relational databases.
+
+rules:
+  - action: ALWAYS
+    rule: "Add created_at and updated_at timestamp columns (TIMESTAMPTZ, not TIMESTAMP) to every table"
+  - action: ALWAYS
+    rule: "Index columns used in WHERE clauses, JOIN conditions, ORDER BY, and all foreign key columns"
+  - action: ALWAYS
+    rule: "Order composite indexes with equality columns first, range columns last, most selective first"
+  - action: ALWAYS
+    rule: "Select only needed columns in queries - never SELECT * in production code"
+  - action: ALWAYS
+    rule: "Use JOINs or eager loading to solve N+1 query problems - never fetch related records in a loop"
+  - action: ALWAYS
+    rule: "Add columns as nullable first, backfill data, then add NOT NULL constraint for zero-downtime migrations"
+  - action: ALWAYS
+    rule: "Use CREATE INDEX CONCURRENTLY (PostgreSQL) for non-blocking index creation on production tables"
+  - action: ALWAYS
+    rule: "Rename columns via add-new, migrate-data, deploy, drop-old - never rename directly in production"
+  - action: NEVER
+    rule: "Use SELECT * in production queries - it fetches unnecessary data and breaks when columns are added"
+  - action: NEVER
+    rule: "Make breaking schema changes in one step - always use multi-step migrations for zero downtime"
+  - action: NEVER
+    rule: "Skip indexing on foreign key columns - unindexed FKs cause full table scans on JOINs and CASCADE deletes"
+  - action: PREFER
+    rule: "Use UUIDs or ULIDs for primary keys in distributed systems - auto-increment for simple single-database apps"
+  - action: PREFER
+    rule: "Normalize data by default - only denormalize when read performance is measured and proven insufficient"
+  - action: PREFER
+    rule: "Test migrations on a data copy first and have a documented rollback plan before running in production"
+
+anti_patterns:
+  - "N+1 queries - fetching parent records then looping to fetch children one by one"
+  - "Missing indexes on foreign key columns causing slow JOINs and CASCADE operations"
+  - "Using TIMESTAMP without timezone - causes ambiguity across regions and DST transitions"
+  - "Storing structured relational data as JSON blobs to avoid creating proper tables"
+  - "Over-indexing write-heavy tables - each index slows INSERT/UPDATE operations"
+  - "Running ALTER TABLE with NOT NULL constraint on a large table without backfilling first"
+  - "Sequential integer IDs in public APIs enabling resource enumeration"
+
+examples:
+  zero_downtime_migration: |
+    -- Step 1: Add nullable column
+    ALTER TABLE users ADD COLUMN display_name VARCHAR(255);
+
+    -- Step 2: Backfill (in batches)
+    UPDATE users SET display_name = name WHERE display_name IS NULL LIMIT 1000;
+
+    -- Step 3: Add constraint after backfill complete
+    ALTER TABLE users ALTER COLUMN display_name SET NOT NULL;
+
+  composite_index: |
+    -- Query: WHERE status = 'active' AND created_at > '2024-01-01' ORDER BY created_at
+    -- Equality first, range last:
+    CREATE INDEX idx_users_status_created ON users (status, created_at);
+
+  n_plus_one_fix: |
+    -- Bad: N+1 (1 query + N queries)
+    orders = db.query("SELECT * FROM orders WHERE user_id = ?", userId);
+    for (order of orders) {
+        order.items = db.query("SELECT * FROM order_items WHERE order_id = ?", order.id);
+    }
+
+    -- Good: Single JOIN query
+    SELECT o.*, oi.* FROM orders o
+    JOIN order_items oi ON oi.order_id = o.id
+    WHERE o.user_id = ?;
+
+context: |
+  Database design patterns applicable to PostgreSQL, MySQL, and other relational
+  databases. The N+1 query problem is the most common performance issue in
+  applications using ORMs. Composite index column ordering directly affects
+  whether the index is used. Zero-downtime migrations require multi-step
+  processes because ALTER TABLE locks can block reads/writes on large tables.
+  TIMESTAMPTZ stores the absolute point in time; TIMESTAMP without timezone
+  is ambiguous across regions.
+
+related:
+  - owasp-api-security
+
+tags:
+  - database
+  - schema-design
+  - indexing
+  - migrations
+  - n-plus-one
+  - postgresql
+  - query-optimization

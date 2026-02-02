@@ -1,0 +1,102 @@
+id: gdpr-data-compliance
+category: patterns
+priority: 10
+updated: 2026-02-02
+
+title: GDPR Data Handling & Privacy Patterns
+description: |
+  Data minimization, consent management, data subject access requests (DSAR),
+  retention policies, breach notification, and privacy-by-design schema
+  separation patterns.
+
+rules:
+  - action: ALWAYS
+    rule: "Collect only data fields required for the stated purpose - maintain an explicit allow-list of fields per purpose"
+  - action: ALWAYS
+    rule: "Store consent as a first-class auditable entity with purpose, timestamp, source, and version for each consent grant"
+  - action: ALWAYS
+    rule: "Respond to data subject access requests (access, erasure, rectification, portability) within 30 days"
+  - action: ALWAYS
+    rule: "Define retention periods for every data category with legal basis and automatic enforcement via scheduled jobs"
+  - action: ALWAYS
+    rule: "Separate PII from behavioral data - store PII encrypted in a dedicated table, analytics data pseudonymized"
+  - action: ALWAYS
+    rule: "Report data breaches to supervisory authority within 72 hours when personal data is affected"
+  - action: ALWAYS
+    rule: "Encrypt PII at rest and in transit - use field-level encryption for sensitive columns, TLS for all data transfer"
+  - action: NEVER
+    rule: "Pre-check consent checkboxes or bundle separate consent purposes into one checkbox - consent must be freely given per purpose"
+  - action: NEVER
+    rule: "Retain personal data indefinitely without a defined retention period and legal basis"
+  - action: NEVER
+    rule: "Transfer personal data to third parties without documented safeguards (SCCs, adequacy decisions, or binding corporate rules)"
+  - action: NEVER
+    rule: "Ignore data subject access requests - failure to respond within 30 days is a GDPR violation"
+  - action: PREFER
+    rule: "Anonymize analytics data instead of deleting - replace identifying fields with irreversible hashes"
+  - action: PREFER
+    rule: "Use UUIDs (not sequential IDs) for user identifiers to prevent enumeration of personal records"
+
+anti_patterns:
+  - "Collecting all form fields and storing everything 'just in case' without purpose limitation"
+  - "Single 'I agree to everything' consent checkbox bundling analytics, marketing, and functional consent"
+  - "No retention schedule - data accumulates forever without review or deletion"
+  - "PII mixed with behavioral data in the same tables making pseudonymization impossible"
+  - "Breach discovered but not reported within 72 hours due to no incident response process"
+  - "Storing consent grants without timestamps, versioning, or audit trail"
+
+examples:
+  three_schema_separation: |
+    # Schema 1: Profile (hashed lookups, minimal)
+    user_profile = { user_id: UUID, email_hash: str, preferences: {} }
+
+    # Schema 2: PII (encrypted at rest, access-controlled)
+    user_pii = { user_id: UUID, email: encrypted, name: encrypted, encryption_key_id: str }
+
+    # Schema 3: Analytics (pseudonymized, not linkable)
+    analytics = { session_id: str, pseudonym_id: str, events: [], country: str }
+
+  data_minimization: |
+    REQUIRED_FIELDS = {
+        'account_creation': ['email', 'password'],
+        'newsletter': ['email'],
+        'purchase': ['email', 'name', 'address', 'payment'],
+        'support': ['email', 'message']
+    }
+
+    def collect_only_needed(form_data, purpose):
+        allowed = REQUIRED_FIELDS.get(purpose, [])
+        return {k: v for k, v in form_data.items() if k in allowed}
+
+  retention_policies: |
+    Data Type             | Retention  | Basis            | Action
+    user_account          | 3 years    | CONTRACT         | Archive then delete
+    transaction_records   | 7 years    | LEGAL_OBLIGATION  | Archive (tax)
+    marketing_consent     | 2 years    | CONSENT          | Delete
+    analytics_data        | 1 year     | CONSENT          | Anonymize
+
+context: |
+  GDPR compliance patterns for applications handling EU personal data. The six
+  legal bases for processing are consent, contract, legal obligation, vital
+  interests, public interest, and legitimate interest. Data subject rights
+  (Articles 15-21) include access, rectification, erasure, restriction,
+  portability, and objection. Privacy by design means separating PII from
+  analytics data at the schema level, not as an afterthought. The 72-hour
+  breach notification window starts when the breach is detected, not when
+  investigation is complete. Retention policies must be tied to legal basis
+  and enforced automatically.
+
+related:
+  - api-authentication-security
+  - web-application-security
+  - secrets-management-patterns
+
+tags:
+  - gdpr
+  - privacy
+  - compliance
+  - data-protection
+  - consent
+  - retention
+  - breach-notification
+  - pii

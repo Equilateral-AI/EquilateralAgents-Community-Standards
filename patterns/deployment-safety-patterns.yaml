@@ -1,0 +1,87 @@
+id: deployment-safety-patterns
+category: patterns
+priority: 10
+updated: 2026-02-02
+
+title: Deployment Safety & Rollback Patterns
+description: |
+  Five-phase deployment process, pre-deployment verification, rollback
+  strategies, zero-downtime deployment patterns, and post-deployment
+  monitoring windows.
+
+rules:
+  - action: ALWAYS
+    rule: "Follow the 5-phase process: Prepare (verify code/build/env) -> Backup -> Deploy -> Verify -> Confirm or Rollback"
+  - action: ALWAYS
+    rule: "Verify all 4 categories before deploying: code quality (tests pass, reviewed), build (succeeds), environment (vars set), safety (backup done, rollback plan ready)"
+  - action: ALWAYS
+    rule: "Have a documented rollback plan before every deployment - know exactly how to revert before you start"
+  - action: ALWAYS
+    rule: "Monitor actively for the first 15 minutes after deployment - do not walk away"
+  - action: ALWAYS
+    rule: "Rollback first, debug later - speed over perfection when production is broken"
+  - action: ALWAYS
+    rule: "Deploy one change at a time - multiple changes make it impossible to isolate which caused a failure"
+  - action: NEVER
+    rule: "Deploy on Friday or before holidays unless critical - reduced staffing makes incident response harder"
+  - action: NEVER
+    rule: "Skip staging environment testing - always validate in a production-like environment first"
+  - action: NEVER
+    rule: "Deploy without a backup of current state - you cannot rollback without a known-good baseline"
+  - action: NEVER
+    rule: "Compound errors during an incident by making additional changes - one rollback, then investigate"
+  - action: PREFER
+    rule: "Use small, frequent deployments over large batched releases - smaller changes are easier to debug and rollback"
+  - action: PREFER
+    rule: "Use feature flags for risky changes so they can be disabled without a deployment"
+  - action: PREFER
+    rule: "Use blue-green deployment for high-risk changes and canary deployment when you need real-traffic validation"
+
+anti_patterns:
+  - "Deploying untested code directly to production without staging"
+  - "Walking away after deploy without monitoring - issues may surface within minutes"
+  - "Deploying multiple unrelated changes together making root cause analysis impossible"
+  - "No rollback plan - discovering how to revert during an outage"
+  - "Rushing deployment without following the checklist because it's 'just a small change'"
+  - "Making additional changes during an incident instead of rolling back first"
+
+examples:
+  verification_window: |
+    Post-deployment monitoring timeline:
+    - 0-5 minutes:   Active monitoring (health endpoint, error logs, key flows)
+    - 5-15 minutes:  Confirm stable (error rates, response times)
+    - 15-60 minutes: Final verification (metrics baseline comparison)
+    - Next day:      Review metrics dashboard for anomalies
+
+  zero_downtime_strategies: |
+    Rolling:    Replace instances one by one (standard releases)
+    Blue-Green: Switch traffic between environments (high-risk, easy rollback)
+    Canary:     Gradual traffic shift 1% -> 10% -> 50% -> 100% (real-traffic validation)
+
+  rollback_decision: |
+    Service down?              -> Rollback immediately
+    Critical errors in logs?   -> Rollback immediately
+    Performance >50% degraded? -> Consider rollback
+    Minor non-critical issues? -> Fix forward if quick (<15 min)
+
+context: |
+  Deployment safety patterns that prevent and mitigate production incidents.
+  The 5-phase process (Prepare, Backup, Deploy, Verify, Confirm/Rollback) is a
+  universal framework regardless of platform. Pre-deployment verification catches
+  most issues before they reach production. The 15-minute monitoring window catches
+  issues that tests miss. Feature flags decouple deployment from release, allowing
+  code to be deployed inactive and enabled gradually. Every deployment is a risk -
+  minimize risk through preparation, not speed.
+
+related:
+  - container-security-patterns
+
+tags:
+  - deployment
+  - rollback
+  - zero-downtime
+  - blue-green
+  - canary
+  - feature-flags
+  - devops
+  - safety

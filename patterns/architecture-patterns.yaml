@@ -1,0 +1,97 @@
+id: architecture-patterns
+category: patterns
+priority: 15
+updated: 2026-02-02
+
+title: Software Architecture Patterns
+description: |
+  Clean Architecture, Hexagonal Architecture (Ports and Adapters), and
+  Domain-Driven Design tactical patterns. Dependency rules, layer
+  boundaries, and domain modeling principles.
+
+rules:
+  - action: ALWAYS
+    rule: "Dependencies point inward - inner layers (domain, use cases) never import from outer layers (frameworks, databases, UI)"
+  - action: ALWAYS
+    rule: "Define interfaces (ports) in the domain layer and implement them (adapters) in the infrastructure layer"
+  - action: ALWAYS
+    rule: "Keep business logic in domain entities and use cases - controllers handle HTTP concerns only, delegate to use cases"
+  - action: ALWAYS
+    rule: "Use value objects for concepts defined by attributes (Email, Money) - make them immutable with validation in constructor"
+  - action: ALWAYS
+    rule: "Define aggregate boundaries as consistency boundaries - persist and retrieve entire aggregates, not individual entities"
+  - action: ALWAYS
+    rule: "Publish domain events for cross-aggregate side effects instead of direct calls between aggregates"
+  - action: NEVER
+    rule: "Let framework dependencies leak into domain entities - business logic must be testable without database, HTTP, or UI"
+  - action: NEVER
+    rule: "Create anemic domain models with only data and no behavior - put business rules on the entities that own the data"
+  - action: NEVER
+    rule: "Put business logic in controllers or API handlers - controllers should be thin, delegating to use cases"
+  - action: NEVER
+    rule: "Expose ORM objects or database rows directly through APIs - map to domain entities or DTOs at the boundary"
+  - action: PREFER
+    rule: "Start with a well-structured monolith and extract microservices when domain boundaries are proven"
+  - action: PREFER
+    rule: "Use ubiquitous language - name classes, methods, and variables using domain terminology, not technical jargon"
+
+anti_patterns:
+  - "Anemic domain models - entities with only getters/setters and all logic in service classes"
+  - "Fat controllers with validation, business logic, data access, and response formatting all in one function"
+  - "Framework coupling - importing Express, Django, or Spring directly in domain entities"
+  - "Repository methods returning ORM objects instead of domain entities"
+  - "Missing abstractions - use cases directly calling database drivers instead of repository interfaces"
+  - "Over-engineering simple CRUD with full Clean Architecture layers when a thin controller would suffice"
+
+examples:
+  clean_architecture_structure: |
+    app/
+    ├── domain/           # Entities, value objects, interfaces (innermost)
+    │   ├── entities/
+    │   ├── value_objects/
+    │   └── interfaces/   # Repository and gateway ports
+    ├── use_cases/        # Application business rules
+    ├── adapters/         # Controllers, repository implementations
+    │   ├── controllers/
+    │   ├── repositories/
+    │   └── gateways/
+    └── infrastructure/   # Framework config, database, logging
+
+  hexagonal_port_adapter: |
+    # Port (interface in domain)
+    class PaymentGatewayPort(ABC):
+        @abstractmethod
+        async def charge(self, amount: Money, customer: str) -> PaymentResult: ...
+
+    # Adapter (implementation in infrastructure)
+    class StripePaymentAdapter(PaymentGatewayPort):
+        async def charge(self, amount, customer):
+            return self.stripe.Charge.create(amount=amount.cents, customer=customer)
+
+    # Test adapter (no external dependencies)
+    class MockPaymentAdapter(PaymentGatewayPort):
+        async def charge(self, amount, customer):
+            return PaymentResult(success=True, transaction_id="mock-123")
+
+context: |
+  Architectural patterns for building maintainable backend systems. Clean
+  Architecture (Uncle Bob) enforces the dependency rule - inner layers are
+  pure business logic, outer layers handle infrastructure. Hexagonal
+  Architecture (Ports and Adapters) makes swapping implementations trivial
+  via interfaces. DDD tactical patterns (entities, value objects, aggregates,
+  domain events, repositories) model complex business domains. These patterns
+  add complexity - use them for systems with rich business logic, not simple
+  CRUD applications.
+
+related:
+  - microservices-resilience
+  - error-handling-resilience
+
+tags:
+  - architecture
+  - clean-architecture
+  - hexagonal
+  - ddd
+  - domain-driven-design
+  - ports-adapters
+  - dependency-inversion
