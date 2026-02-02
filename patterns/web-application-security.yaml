@@ -1,0 +1,128 @@
+id: web-application-security
+category: patterns
+priority: 10
+updated: 2026-02-02
+
+title: Web Application Security Patterns
+description: |
+  CSRF protection, XSS prevention, security headers, CSP, and error
+  sanitization patterns for web applications. Extracted from community
+  security skills and OWASP guidelines.
+
+rules:
+  - action: ALWAYS
+    rule: "Set security headers on all HTTP responses - Content-Security-Policy, X-Content-Type-Options, X-Frame-Options, Strict-Transport-Security, Referrer-Policy"
+  - action: ALWAYS
+    rule: "Implement CSRF protection on all state-changing endpoints using synchronizer tokens or SameSite cookie attribute"
+  - action: ALWAYS
+    rule: "Encode all user-supplied data before rendering in HTML, JavaScript, CSS, or URL contexts using context-appropriate encoding"
+  - action: ALWAYS
+    rule: "Set Content-Security-Policy header with explicit script-src, style-src, and default-src directives - never use unsafe-inline or unsafe-eval in production"
+  - action: ALWAYS
+    rule: "Sanitize HTML output with DOMPurify or equivalent library before inserting user content into DOM"
+  - action: ALWAYS
+    rule: "Return generic error messages to clients - never expose stack traces, SQL errors, internal paths, or dependency versions"
+  - action: ALWAYS
+    rule: "Set Strict-Transport-Security header with max-age of at least 31536000 (one year) and includeSubDomains"
+  - action: NEVER
+    rule: "Render user input directly into HTML templates without escaping - use template engine auto-escaping"
+  - action: NEVER
+    rule: "Use innerHTML or dangerouslySetInnerHTML with unsanitized user input"
+  - action: NEVER
+    rule: "Disable HTTPS or allow mixed content on pages handling authentication or sensitive data"
+  - action: PREFER
+    rule: "Use Helmet.js middleware (Node/Express) or equivalent framework security middleware to set security headers automatically"
+  - action: PREFER
+    rule: "Implement Subresource Integrity (SRI) hashes on all third-party scripts and stylesheets"
+
+anti_patterns:
+  - "Setting Content-Security-Policy to unsafe-inline unsafe-eval * to silence CSP errors"
+  - "Returning raw database error messages or stack traces in API responses"
+  - "Using document.write() or innerHTML with user-controlled strings"
+  - "Missing X-Frame-Options header allowing clickjacking attacks"
+  - "Disabling template auto-escaping to render raw HTML from user input"
+  - "Serving authentication pages over HTTP or without HSTS header"
+  - "Logging sensitive data (passwords, tokens, PII) in error messages"
+
+examples:
+  security_headers_express: |
+    const helmet = require('helmet');
+    const app = express();
+
+    app.use(helmet());
+    app.use(helmet.contentSecurityPolicy({
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'"],
+        styleSrc: ["'self'", "'nonce-{random}'"],
+        imgSrc: ["'self'", "data:", "https:"],
+        connectSrc: ["'self'", "https://api.example.com"],
+        frameSrc: ["'none'"],
+        objectSrc: ["'none'"]
+      }
+    }));
+
+  csrf_protection: |
+    const csrf = require('csurf');
+    const csrfProtection = csrf({ cookie: { httpOnly: true, sameSite: 'strict' } });
+
+    app.get('/form', csrfProtection, (req, res) => {
+      res.render('form', { csrfToken: req.csrfToken() });
+    });
+
+    app.post('/submit', csrfProtection, (req, res) => {
+      // CSRF token automatically validated
+      processSubmission(req.body);
+    });
+
+  safe_error_response: |
+    // Bad - exposes internals
+    app.use((err, req, res, next) => {
+      res.status(500).json({ error: err.message, stack: err.stack });
+    });
+
+    // Good - generic client message, detailed server log
+    app.use((err, req, res, next) => {
+      const errorId = crypto.randomUUID();
+      console.error('Unhandled error:', { errorId, message: err.message, stack: err.stack, path: req.path });
+      res.status(500).json({ error: 'Internal server error', errorId });
+    });
+
+  xss_prevention: |
+    // Bad - raw user input in DOM
+    element.innerHTML = userInput;
+
+    // Good - sanitized with DOMPurify
+    const DOMPurify = require('dompurify');
+    element.innerHTML = DOMPurify.sanitize(userInput);
+
+    // Good - text content (no HTML parsing)
+    element.textContent = userInput;
+
+context: |
+  Application-level security controls that protect web applications from common
+  attack vectors. These complement infrastructure-level controls (WAF, IAM) from
+  the well-architected security standard. OWASP Top 10 web application risks
+  include injection, broken authentication, XSS, CSRF, security misconfiguration,
+  and sensitive data exposure. Defense in depth means applying controls at both
+  infrastructure and application layers. Security headers provide browser-enforced
+  protection against clickjacking, MIME sniffing, and script injection. Error
+  messages must balance developer debugging needs (server-side logs) with client
+  safety (generic responses).
+
+related:
+  - api-authentication-security
+  - owasp-api-security
+  - security
+
+tags:
+  - security
+  - xss
+  - csrf
+  - csp
+  - security-headers
+  - owasp
+  - web-application
+  - error-handling
+  - helmet
+  - hsts

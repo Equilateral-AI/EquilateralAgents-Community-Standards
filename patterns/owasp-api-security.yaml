@@ -1,0 +1,146 @@
+id: owasp-api-security
+category: patterns
+priority: 10
+updated: 2026-02-02
+
+title: OWASP API Security Top 10 Patterns
+description: |
+  Object-level authorization (BOLA/IDOR), mass assignment prevention,
+  response filtering, pagination limits, and resource enumeration protection.
+  Derived from OWASP API Security Top 10 (2023).
+
+rules:
+  - action: ALWAYS
+    rule: "Enforce object-level authorization on every API endpoint - verify the requesting user owns or has access to the specific resource"
+  - action: ALWAYS
+    rule: "Implement rate limiting per user, per endpoint, and per IP with appropriate limits for each endpoint's sensitivity"
+  - action: ALWAYS
+    rule: "Return only the fields the client needs - never expose full database objects or internal fields in API responses"
+  - action: ALWAYS
+    rule: "Validate and whitelist all fields on create/update operations - reject unexpected fields to prevent mass assignment"
+  - action: ALWAYS
+    rule: "Enforce pagination limits on all list endpoints with a maximum page size (e.g., max 100 items)"
+  - action: ALWAYS
+    rule: "Log all authentication failures, authorization failures, and input validation failures with request context"
+  - action: ALWAYS
+    rule: "Validate Content-Type header matches expected format and reject requests with unexpected content types"
+  - action: ALWAYS
+    rule: "Implement request size limits on all endpoints - reject payloads exceeding expected maximum"
+  - action: NEVER
+    rule: "Rely solely on client-side authorization checks - always enforce access control server-side"
+  - action: NEVER
+    rule: "Expose sequential or predictable resource IDs - use UUIDs or business-scoped identifiers"
+  - action: NEVER
+    rule: "Allow unlimited API requests without throttling - every endpoint needs rate limiting proportional to its cost"
+  - action: NEVER
+    rule: "Return different HTTP status codes for resource-not-found vs unauthorized - use 404 for both to prevent enumeration"
+  - action: PREFER
+    rule: "Use field-level permissions to control which users can read or write specific fields on shared resources"
+  - action: PREFER
+    rule: "Implement request signing or HMAC verification for webhook and server-to-server API calls"
+
+anti_patterns:
+  - "Checking only that user is authenticated but not that they own the requested resource (BOLA/IDOR)"
+  - "Returning full database records including internal fields like passwordHash, internalNotes, adminFlags"
+  - "Accepting arbitrary fields on POST/PUT and passing directly to database update (mass assignment)"
+  - "No pagination on list endpoints allowing extraction of entire datasets in one request"
+  - "Using sequential integer IDs in URLs making resource enumeration trivial"
+  - "Different behavior for GET /users/123 (404 not found) vs GET /users/456 (403 forbidden) leaking valid IDs"
+  - "No rate limiting on resource-intensive endpoints like search, export, or report generation"
+  - "Accepting request bodies of unlimited size on file upload or data import endpoints"
+
+examples:
+  object_level_authorization: |
+    // Bad - checks authentication only
+    app.get('/api/orders/:id', authenticate, async (req, res) => {
+      const order = await db.getOrder(req.params.id);
+      res.json(order);  // Any authenticated user can see any order
+    });
+
+    // Good - checks ownership
+    app.get('/api/orders/:id', authenticate, async (req, res) => {
+      const order = await db.getOrder(req.params.id);
+      if (!order) return res.status(404).json({ error: 'Not found' });
+      if (order.userId !== req.user.id && !req.user.isAdmin) {
+        return res.status(404).json({ error: 'Not found' });  // 404, not 403
+      }
+      res.json(filterFields(order, ['id', 'status', 'total', 'createdAt']));
+    });
+
+  mass_assignment_prevention: |
+    // Bad - accepts all fields
+    app.put('/api/users/:id', async (req, res) => {
+      await db.updateUser(req.params.id, req.body);  // Client can set isAdmin: true
+    });
+
+    // Good - whitelist allowed fields
+    const ALLOWED_UPDATE_FIELDS = ['name', 'email', 'preferences'];
+
+    app.put('/api/users/:id', async (req, res) => {
+      const updates = {};
+      for (const field of ALLOWED_UPDATE_FIELDS) {
+        if (req.body[field] !== undefined) updates[field] = req.body[field];
+      }
+      await db.updateUser(req.params.id, updates);
+    });
+
+  response_filtering: |
+    // Bad - returns full DB object
+    res.json(await db.getUser(id));
+    // Exposes: { id, email, passwordHash, ssn, internalRole, createdAt, ... }
+
+    // Good - explicit field selection
+    function toPublicUser(user) {
+      return {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        createdAt: user.createdAt
+      };
+    }
+    res.json(toPublicUser(await db.getUser(id)));
+
+  pagination_limits: |
+    const MAX_PAGE_SIZE = 100;
+    const DEFAULT_PAGE_SIZE = 20;
+
+    app.get('/api/items', async (req, res) => {
+      const page = Math.max(1, parseInt(req.query.page) || 1);
+      const limit = Math.min(MAX_PAGE_SIZE, Math.max(1, parseInt(req.query.limit) || DEFAULT_PAGE_SIZE));
+      const offset = (page - 1) * limit;
+
+      const { items, total } = await db.getItems({ limit, offset });
+      res.json({
+        data: items,
+        pagination: { page, limit, total, pages: Math.ceil(total / limit) }
+      });
+    });
+
+context: |
+  Standards derived from the OWASP API Security Top 10 (2023). The most common
+  API vulnerabilities are: API1 Broken Object Level Authorization (BOLA/IDOR),
+  API2 Broken Authentication, API3 Broken Object Property Level Authorization
+  (excessive data exposure + mass assignment), API4 Unrestricted Resource
+  Consumption (no rate limits), API5 Broken Function Level Authorization,
+  API6 Unrestricted Access to Sensitive Business Flows, API7 Server Side
+  Request Forgery, API8 Security Misconfiguration, API9 Improper Inventory
+  Management, API10 Unsafe Consumption of APIs. BOLA is the #1 API vulnerability
+  - every endpoint must verify the requesting user has access to the specific
+  resource, not just that they are authenticated.
+
+related:
+  - api-authentication-security
+  - web-application-security
+  - security
+
+tags:
+  - security
+  - owasp
+  - api
+  - authorization
+  - bola
+  - idor
+  - mass-assignment
+  - rate-limiting
+  - pagination
+  - data-exposure

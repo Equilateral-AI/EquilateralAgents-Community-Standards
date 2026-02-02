@@ -1,0 +1,143 @@
+id: api-authentication-security
+category: patterns
+priority: 10
+updated: 2026-02-02
+
+title: API Authentication & Token Security
+description: |
+  JWT signing, validation, refresh token rotation, password hashing,
+  OAuth PKCE, and account lockout patterns. Extracted from community
+  security skills and OWASP authentication guidelines.
+
+rules:
+  - action: ALWAYS
+    rule: "Use RS256 or ES256 asymmetric algorithms for JWT signing - never HS256 with shared secrets in distributed systems"
+  - action: ALWAYS
+    rule: "Set JWT access token expiry to 15 minutes or less - use refresh tokens for session continuity"
+  - action: ALWAYS
+    rule: "Validate JWT issuer (iss), audience (aud), expiration (exp), and algorithm (alg) on every request"
+  - action: ALWAYS
+    rule: "Store refresh tokens server-side with rotation - invalidate previous refresh token on each use"
+  - action: ALWAYS
+    rule: "Hash passwords with bcrypt (cost factor 12+), scrypt, or Argon2 - never MD5, SHA1, or SHA256"
+  - action: ALWAYS
+    rule: "Implement account lockout after 5 failed login attempts with exponential backoff or CAPTCHA"
+  - action: ALWAYS
+    rule: "Use httpOnly, secure, and SameSite=Strict flags on all authentication cookies"
+  - action: ALWAYS
+    rule: "Validate OAuth redirect_uri against an exact whitelist - never allow open redirects"
+  - action: NEVER
+    rule: "Accept the JWT alg header at face value - always enforce expected algorithm server-side to prevent alg:none attacks"
+  - action: NEVER
+    rule: "Store JWT tokens in localStorage - use httpOnly cookies or in-memory storage to prevent XSS token theft"
+  - action: NEVER
+    rule: "Include sensitive data (passwords, PII, internal IDs) in JWT payload - tokens are base64 encoded, not encrypted"
+  - action: NEVER
+    rule: "Implement custom cryptography or token formats - use established libraries (jsonwebtoken, jose, passport)"
+  - action: PREFER
+    rule: "Implement token revocation via short-lived tokens plus a deny-list for compromised tokens"
+  - action: PREFER
+    rule: "Use PKCE (Proof Key for Code Exchange) for all OAuth authorization code flows, especially SPAs and mobile apps"
+
+anti_patterns:
+  - "Using HS256 shared secret across multiple services - secret compromise exposes all services"
+  - "JWT access tokens with 24-hour or longer expiry - limits ability to revoke access"
+  - "Storing passwords with MD5 or unsalted SHA256 hashing"
+  - "Accepting alg:none in JWT validation allowing forged tokens"
+  - "Storing access tokens in localStorage where XSS can exfiltrate them"
+  - "No rate limiting on login or token refresh endpoints"
+  - "OAuth redirect_uri validation using string startsWith instead of exact match"
+  - "Returning different error messages for invalid username vs invalid password (enumeration)"
+
+examples:
+  jwt_validation: |
+    const jose = require('jose');
+
+    async function validateToken(token) {
+      const JWKS = jose.createRemoteJWKSet(new URL('https://auth.example.com/.well-known/jwks.json'));
+
+      const { payload } = await jose.jwtVerify(token, JWKS, {
+        issuer: 'https://auth.example.com',
+        audience: 'https://api.example.com',
+        algorithms: ['RS256'],  // Enforce algorithm server-side
+        maxTokenAge: '15m'
+      });
+
+      return payload;
+    }
+
+  password_hashing: |
+    const bcrypt = require('bcrypt');
+    const SALT_ROUNDS = 12;
+
+    async function hashPassword(password) {
+      return bcrypt.hash(password, SALT_ROUNDS);
+    }
+
+    async function verifyPassword(password, hash) {
+      return bcrypt.compare(password, hash);
+    }
+
+  refresh_token_rotation: |
+    async function refreshAccessToken(refreshToken) {
+      const stored = await db.getRefreshToken(refreshToken);
+      if (!stored || stored.revoked || stored.expiresAt < Date.now()) {
+        // If token was already used, revoke entire family (potential theft)
+        if (stored?.used) await db.revokeTokenFamily(stored.familyId);
+        throw new Error('Invalid refresh token');
+      }
+
+      // Mark current token as used
+      await db.markRefreshTokenUsed(refreshToken);
+
+      // Issue new pair
+      const newAccessToken = signAccessToken(stored.userId);
+      const newRefreshToken = await db.createRefreshToken({
+        userId: stored.userId,
+        familyId: stored.familyId
+      });
+
+      return { accessToken: newAccessToken, refreshToken: newRefreshToken };
+    }
+
+  login_rate_limiting: |
+    const rateLimit = require('express-rate-limit');
+
+    const loginLimiter = rateLimit({
+      windowMs: 15 * 60 * 1000,  // 15 minutes
+      max: 5,                     // 5 attempts per window
+      skipSuccessfulRequests: true,
+      message: { error: 'Too many login attempts, try again later' },
+      keyGenerator: (req) => req.body.email || req.ip
+    });
+
+    app.post('/auth/login', loginLimiter, loginHandler);
+
+context: |
+  Authentication and token management standards for APIs and web applications.
+  JWT is the dominant token format but requires careful configuration to avoid
+  common vulnerabilities: algorithm confusion (alg:none), token theft via XSS,
+  excessive token lifetimes, and weak signing keys. Refresh token rotation with
+  family tracking detects token theft - if a used refresh token is presented,
+  the entire token family is revoked. Password hashing must use adaptive
+  algorithms (bcrypt, Argon2) that are deliberately slow. OAuth flows require
+  PKCE for public clients (SPAs, mobile) and exact redirect_uri matching.
+  Authentication endpoints are high-value targets requiring rate limiting and
+  account lockout.
+
+related:
+  - web-application-security
+  - owasp-api-security
+  - security
+
+tags:
+  - security
+  - authentication
+  - jwt
+  - oauth
+  - passwords
+  - tokens
+  - rate-limiting
+  - bcrypt
+  - pkce
+  - session-management
