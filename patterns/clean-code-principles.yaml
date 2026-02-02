@@ -1,0 +1,98 @@
+id: clean-code-principles
+category: patterns
+priority: 20
+updated: 2026-02-02
+
+title: Clean Code & Pragmatic Standards
+description: |
+  Single Responsibility, naming conventions, function size limits, guard
+  clauses, dependency awareness, and anti-patterns for over-engineering.
+
+rules:
+  - action: ALWAYS
+    rule: "Single Responsibility - each function and class does one thing well"
+  - action: ALWAYS
+    rule: "Use descriptive names that reveal intent - userCount not n, getUserById() not user(), isActive not flag"
+  - action: ALWAYS
+    rule: "Keep functions small (max 20 lines, ideally 5-10) with max 3 arguments (prefer 0-2)"
+  - action: ALWAYS
+    rule: "Use guard clauses for early returns instead of deep nesting - max 2 levels of indentation"
+  - action: ALWAYS
+    rule: "Before editing any file, check what imports it and what it imports - update all dependent files in the same change"
+  - action: ALWAYS
+    rule: "Replace magic numbers and strings with named constants - MAX_RETRY_COUNT not 3"
+  - action: NEVER
+    rule: "Create helper files, utility classes, or abstractions for one-time operations - inline the code where it's used"
+  - action: NEVER
+    rule: "Write functions longer than 20 lines or with more than 3 parameters - split by responsibility"
+  - action: NEVER
+    rule: "Add comments that repeat what the code does - if a name needs a comment, rename it instead"
+  - action: PREFER
+    rule: "Composition of small functions over complex single functions with multiple responsibilities"
+  - action: PREFER
+    rule: "Boolean names as questions: isActive, hasPermission, canEdit - not active, permission, edit"
+  - action: PREFER
+    rule: "Leave code cleaner than you found it (Boy Scout Rule) - but only touch code related to your current change"
+
+anti_patterns:
+  - "God functions doing validation, business logic, data access, and formatting in 100+ lines"
+  - "Variables named n, x, tmp, data without context - unclear intent"
+  - "Creating a Factory pattern for only 2 object types when direct instantiation suffices"
+  - "utils.ts with a single function that should live where it's used"
+  - "Deep nesting (3+ levels of if/for) instead of guard clauses and early returns"
+  - "Commenting every line instead of writing self-documenting code with clear names"
+  - "Editing a file without checking what imports it - leaving broken imports elsewhere"
+
+examples:
+  guard_clauses: |
+    // Bad: deep nesting
+    function processOrder(order) {
+      if (order) {
+        if (order.items.length > 0) {
+          if (order.status === 'pending') {
+            // actual logic buried 3 levels deep
+          }
+        }
+      }
+    }
+
+    // Good: guard clauses
+    function processOrder(order) {
+      if (!order) return;
+      if (order.items.length === 0) return;
+      if (order.status !== 'pending') return;
+      // actual logic at top level
+    }
+
+  naming: |
+    // Bad
+    function calc(a, b, c) { return a * b + c; }
+
+    // Good
+    function calculateTotalPrice(quantity, unitPrice, tax) {
+      return quantity * unitPrice + tax;
+    }
+
+context: |
+  Clean code principles prioritize readability and maintainability over cleverness.
+  Code is read far more often than written. Small functions with clear names are
+  easier to test, debug, and modify. Guard clauses flatten control flow making
+  the happy path obvious. The dependency awareness rule prevents cascading breakage
+  when editing shared code. Over-engineering (premature abstraction, unnecessary
+  patterns) adds complexity without proportional value. DRY applies when
+  duplication is proven - three similar lines are better than a premature
+  abstraction.
+
+related:
+  - code-review-standards
+  - error-handling-resilience
+
+tags:
+  - clean-code
+  - naming
+  - functions
+  - srp
+  - dry
+  - kiss
+  - yagni
+  - readability

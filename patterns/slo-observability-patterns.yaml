@@ -1,0 +1,103 @@
+id: slo-observability-patterns
+category: patterns
+priority: 15
+updated: 2026-02-02
+
+title: SLO, Error Budgets & Observability
+description: |
+  Service Level Indicators (SLIs), Service Level Objectives (SLOs),
+  error budget policies, multi-window burn rate alerting, and
+  Prometheus/Grafana implementation patterns.
+
+rules:
+  - action: ALWAYS
+    rule: "Define SLIs that measure user-perceived reliability - availability (success ratio), latency (requests under threshold), durability (successful writes)"
+  - action: ALWAYS
+    rule: "Set achievable SLO targets below 100% - use error budgets to balance reliability investment against feature velocity"
+  - action: ALWAYS
+    rule: "Use 28-day rolling windows for SLO evaluation, not calendar months"
+  - action: ALWAYS
+    rule: "Implement multi-window burn rate alerts (fast: 14.4x/1h AND 5m, slow: 6x/6h AND 30m) to reduce false positives"
+  - action: ALWAYS
+    rule: "Define graduated error budget policy: normal at 100%, caution at 50%, freeze non-critical at 10%, full freeze at 0%"
+  - action: ALWAYS
+    rule: "Track error budget consumption continuously and include in weekly/monthly reliability reviews"
+  - action: NEVER
+    rule: "Set SLO target at 100% - it leaves zero error budget for deployments, experiments, or maintenance"
+  - action: NEVER
+    rule: "Alert on single-window metrics only - pair long windows with short windows to suppress transient spikes"
+  - action: NEVER
+    rule: "Define SLIs based on internal metrics (CPU, memory) instead of user-facing signals (request success, latency)"
+  - action: PREFER
+    rule: "Start with SLOs on user-facing services before internal services"
+  - action: PREFER
+    rule: "Use Prometheus recording rules for SLI calculations to avoid expensive queries on dashboards and alerts"
+  - action: PREFER
+    rule: "Automate SLO reporting and include error budget status in deployment readiness checks"
+
+anti_patterns:
+  - "100% availability SLO leaving zero room for planned maintenance, deployments, or experiments"
+  - "Single-window alerts that fire on transient spikes causing alert fatigue"
+  - "SLIs measuring server CPU instead of user-experienced latency and availability"
+  - "No error budget policy - SLO violations have no consequence for development velocity"
+  - "Manual SLO tracking in spreadsheets instead of automated Prometheus/Grafana dashboards"
+  - "Calendar month SLO windows that reset mid-incident giving false sense of budget"
+
+examples:
+  availability_sli: |
+    # Prometheus recording rule
+    - record: sli:http_availability:ratio
+      expr: |
+        sum(rate(http_requests_total{status!~"5.."}[28d]))
+        /
+        sum(rate(http_requests_total[28d]))
+
+  burn_rate_alert: |
+    # Multi-window: fast burn (14.4x over 1h, confirmed by 5m)
+    - alert: SLOErrorBudgetBurnFast
+      expr: |
+        slo:burn_rate_1h > 14.4
+        and
+        slo:burn_rate_5m > 14.4
+      for: 2m
+      labels:
+        severity: critical
+
+  error_budget_policy: |
+    Budget Remaining | Action
+    100%             | Normal development velocity
+    50%              | Postpone risky changes
+    10%              | Freeze non-critical changes
+    0%               | Feature freeze, reliability focus only
+
+  availability_table: |
+    SLO %   | Downtime/Month  | Downtime/Year
+    99%     | 7.2 hours       | 3.65 days
+    99.9%   | 43.2 minutes    | 8.76 hours
+    99.95%  | 21.6 minutes    | 4.38 hours
+    99.99%  | 4.32 minutes    | 52.56 minutes
+
+context: |
+  SLOs (Service Level Objectives) are the foundation of Site Reliability
+  Engineering. SLIs measure what users experience. SLOs set targets for those
+  measurements. Error budgets (1 - SLO target) quantify acceptable unreliability
+  and create a shared language between development and operations. Multi-window
+  burn rate alerting (from Google SRE) reduces false positives by requiring both
+  a long window (sustained problem) and short window (still happening) to exceed
+  thresholds. The 14.4x and 6x burn rates are standard values that consume 2%
+  and 5% of monthly budget per hour/6 hours respectively.
+
+related:
+  - incident-postmortem-patterns
+  - deployment-safety-patterns
+
+tags:
+  - slo
+  - sli
+  - error-budget
+  - observability
+  - prometheus
+  - grafana
+  - alerting
+  - sre
+  - reliability

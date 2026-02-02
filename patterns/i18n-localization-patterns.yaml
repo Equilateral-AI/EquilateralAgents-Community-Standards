@@ -1,0 +1,107 @@
+id: i18n-localization-patterns
+category: patterns
+priority: 20
+updated: 2026-02-02
+
+title: Internationalization & Localization
+description: |
+  Translation key patterns, RTL support with CSS logical properties,
+  pluralization with ICU format, locale-aware date/number formatting,
+  and namespace organization for multi-language applications.
+
+rules:
+  - action: ALWAYS
+    rule: "Use translation keys for all user-facing strings - never hardcode text in components or templates"
+  - action: ALWAYS
+    rule: "Namespace translations by feature (auth.json, errors.json, common.json) to avoid key collisions"
+  - action: ALWAYS
+    rule: "Use Intl.DateTimeFormat and Intl.NumberFormat for locale-aware formatting - never custom date/number formatters"
+  - action: ALWAYS
+    rule: "Support pluralization with ICU message format - languages have different plural rules (Arabic has 6 forms)"
+  - action: ALWAYS
+    rule: "Use CSS logical properties (margin-inline-start, padding-inline-end) instead of physical (margin-left, padding-right) for RTL support"
+  - action: ALWAYS
+    rule: "Configure a fallback language so missing translations show default language text, not raw keys"
+  - action: NEVER
+    rule: "Concatenate translated strings - different languages have different word orders making concatenation produce nonsense"
+  - action: NEVER
+    rule: "Assume text length will be similar across languages - German text is ~30% longer than English, UI must accommodate"
+  - action: NEVER
+    rule: "Use physical CSS direction properties (left, right) in layouts that may need RTL support"
+  - action: PREFER
+    rule: "Use ICU message format for interpolation: '{count, plural, one {# item} other {# items}}'"
+  - action: PREFER
+    rule: "Run an automated checker (lint rule or script) to detect hardcoded strings in components"
+
+anti_patterns:
+  - "Hardcoded strings in JSX/templates that cannot be translated"
+  - "String concatenation: t('hello') + ' ' + name - breaks in languages with different word order"
+  - "Fixed-width UI elements that overflow when German or Finnish translations are 30-50% longer"
+  - "CSS margin-left/padding-right in layouts that need to flip for Arabic/Hebrew RTL"
+  - "Mixing multiple languages in the same translation file"
+  - "No fallback language configured - users see raw translation keys when a string is missing"
+
+examples:
+  translation_usage: |
+    // React with react-i18next
+    import { useTranslation } from 'react-i18next';
+    function Welcome() {
+      const { t } = useTranslation();
+      return <h1>{t('welcome.title')}</h1>;
+    }
+
+    // Next.js with next-intl
+    import { useTranslations } from 'next-intl';
+    function Page() {
+      const t = useTranslations('Home');
+      return <h1>{t('title')}</h1>;
+    }
+
+  rtl_css: |
+    /* Use logical properties for automatic RTL support */
+    .container {
+      margin-inline-start: 1rem;  /* NOT margin-left */
+      padding-inline-end: 1rem;   /* NOT padding-right */
+      text-align: start;          /* NOT text-align: left */
+    }
+    [dir="rtl"] .arrow-icon {
+      transform: scaleX(-1);  /* Flip directional icons */
+    }
+
+  locale_file_structure: |
+    locales/
+    ├── en/
+    │   ├── common.json
+    │   ├── auth.json
+    │   └── errors.json
+    ├── de/
+    │   ├── common.json
+    │   ├── auth.json
+    │   └── errors.json
+    └── ar/           # RTL language
+        ├── common.json
+        └── ...
+
+context: |
+  Internationalization (i18n) is the process of making an application translatable.
+  Localization (L10n) is the actual translation for specific locales. Translation
+  keys decouple UI code from translated text. ICU message format handles
+  pluralization, gender, and select patterns across languages with different
+  grammatical rules. CSS logical properties (inline-start, inline-end, block-start,
+  block-end) automatically flip layouts for RTL languages without separate
+  stylesheets. The Intl API provides locale-aware date, number, and currency
+  formatting built into modern browsers and Node.js.
+
+related:
+  - accessibility-wcag-compliance
+  - clean-code-principles
+
+tags:
+  - i18n
+  - l10n
+  - localization
+  - internationalization
+  - rtl
+  - translation
+  - icu
+  - intl-api

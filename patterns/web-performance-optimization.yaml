@@ -1,0 +1,99 @@
+id: web-performance-optimization
+category: patterns
+priority: 10
+updated: 2026-02-02
+
+title: Web Performance & Core Web Vitals
+description: |
+  Core Web Vitals targets (LCP, FID, CLS), image optimization, JavaScript
+  bundle reduction, code splitting, and caching strategies for fast web
+  applications.
+
+rules:
+  - action: ALWAYS
+    rule: "Meet Core Web Vitals targets: LCP < 2.5s, FID < 100ms, CLS < 0.1, TTFB < 600ms"
+  - action: ALWAYS
+    rule: "Specify width and height attributes on all images to prevent Cumulative Layout Shift"
+  - action: ALWAYS
+    rule: "Use modern image formats (AVIF, WebP) with JPEG fallback via picture element and srcset"
+  - action: ALWAYS
+    rule: "Lazy load below-the-fold images with loading=lazy and use fetchpriority=high on hero/LCP images"
+  - action: ALWAYS
+    rule: "Implement code splitting - lazy load non-critical components and defer third-party scripts until after page load"
+  - action: ALWAYS
+    rule: "Keep JavaScript bundle under 200KB gzipped - analyze with webpack-bundle-analyzer and remove unused dependencies"
+  - action: ALWAYS
+    rule: "Measure before optimizing - establish baseline metrics with Lighthouse before making changes"
+  - action: NEVER
+    rule: "Use synchronous script tags for non-critical JavaScript - use async or defer attributes"
+  - action: NEVER
+    rule: "Import entire utility libraries (lodash, moment.js) when only using a few functions - use per-function imports or lighter alternatives"
+  - action: NEVER
+    rule: "Load all JavaScript upfront in a single bundle - split by route and lazy load non-critical code"
+  - action: PREFER
+    rule: "Preload critical resources (hero images, key fonts) with link rel=preload for faster LCP"
+  - action: PREFER
+    rule: "Use skeleton loaders with reserved dimensions for dynamically loaded content to prevent CLS"
+  - action: PREFER
+    rule: "Inline critical CSS and defer non-critical stylesheets to improve First Contentful Paint"
+
+anti_patterns:
+  - "Images without width/height attributes causing layout shifts as they load"
+  - "Importing entire moment.js (67KB) when date-fns (12KB) covers the same use case"
+  - "Loading analytics, chat widgets, and ads synchronously blocking page render"
+  - "No code splitting - shipping 800KB+ single JavaScript bundle to all pages"
+  - "Optimizing without measuring - guessing at bottlenecks instead of profiling"
+  - "Serving uncompressed 2MB+ images when 200KB WebP/AVIF would suffice"
+
+examples:
+  optimized_hero_image: |
+    <picture>
+      <source srcset="/hero.avif" type="image/avif">
+      <source srcset="/hero.webp" type="image/webp">
+      <img src="/hero.jpg" alt="Hero" width="1200" height="600"
+           loading="eager" fetchpriority="high">
+    </picture>
+    <link rel="preload" as="image" href="/hero.avif" type="image/avif">
+
+  code_splitting: |
+    // Before: everything in one bundle
+    import { HeavyChart } from './HeavyChart';
+
+    // After: lazy load non-critical components
+    const HeavyChart = lazy(() => import('./HeavyChart'));
+
+    // Defer third-party scripts until after page interactive
+    window.addEventListener('load', () => {
+      import('./analytics').then(m => m.init());
+    });
+
+  replace_heavy_deps: |
+    // Before: moment.js (67KB gzipped)
+    import moment from 'moment';
+    const formatted = moment(date).format('YYYY-MM-DD');
+
+    // After: date-fns (12KB for what you use)
+    import { format } from 'date-fns';
+    const formatted = format(date, 'yyyy-MM-dd');
+
+context: |
+  Web performance directly impacts user experience, SEO rankings, and conversion
+  rates. Core Web Vitals (LCP, FID, CLS) are Google ranking signals. LCP measures
+  how fast the main content loads. FID measures input responsiveness (being
+  replaced by INP). CLS measures visual stability. The biggest wins typically come
+  from image optimization (modern formats, responsive sizes), JavaScript reduction
+  (code splitting, tree shaking, lighter dependencies), and deferring non-critical
+  resources. Always measure with Lighthouse before and after optimization.
+
+related:
+  - container-security-patterns
+
+tags:
+  - performance
+  - core-web-vitals
+  - lcp
+  - cls
+  - images
+  - code-splitting
+  - bundle-size
+  - lighthouse

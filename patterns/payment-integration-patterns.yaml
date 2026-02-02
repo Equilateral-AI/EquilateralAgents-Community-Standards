@@ -1,0 +1,95 @@
+id: payment-integration-patterns
+category: patterns
+priority: 15
+updated: 2026-02-02
+
+title: Payment Integration & PCI Compliance
+description: |
+  Stripe integration patterns including webhook verification, idempotent
+  processing, subscription management, PCI compliance, and SCA (Strong
+  Customer Authentication) for European payments.
+
+rules:
+  - action: ALWAYS
+    rule: "Verify webhook signatures using construct_event with endpoint secret - never trust unverified webhook payloads"
+  - action: ALWAYS
+    rule: "Process webhook events idempotently - check if event ID was already processed before acting"
+  - action: ALWAYS
+    rule: "Use webhooks as source of truth for payment status - never rely solely on client-side payment confirmation"
+  - action: ALWAYS
+    rule: "Handle all relevant webhook events (succeeded, failed, refunded, subscription changes) not just success"
+  - action: ALWAYS
+    rule: "Store amounts in smallest currency unit (cents) as integers - 2000 = $20.00, never use floats for money"
+  - action: ALWAYS
+    rule: "Use metadata to link Stripe objects (payments, subscriptions, customers) to your application database records"
+  - action: NEVER
+    rule: "Handle raw card numbers on your server - use Stripe.js, Elements, or Checkout Sessions for PCI compliance"
+  - action: NEVER
+    rule: "Hardcode payment amounts in client-side code - always create PaymentIntents or Checkout Sessions server-side"
+  - action: NEVER
+    rule: "Skip webhook signature verification - unsigned webhooks can be forged by attackers"
+  - action: PREFER
+    rule: "Use Stripe Checkout (hosted) for fastest implementation and minimal PCI scope"
+  - action: PREFER
+    rule: "Implement Stripe Customer Portal for self-service subscription management"
+  - action: PREFER
+    rule: "Test all edge cases with Stripe test card numbers (4242... success, 4000...0002 decline, 4000...3155 3D Secure)"
+
+anti_patterns:
+  - "Processing webhooks without signature verification - anyone can POST fake events to your endpoint"
+  - "No idempotency check - processing the same webhook event twice causes duplicate charges or credits"
+  - "Only handling payment_intent.succeeded and ignoring failure, refund, and dispute events"
+  - "Using float arithmetic for money calculations causing rounding errors"
+  - "Relying on frontend redirect to confirm payment instead of webhook confirmation"
+  - "Going to production without testing with Stripe test cards including decline and 3DS scenarios"
+
+examples:
+  webhook_verification: |
+    @app.route('/webhook', methods=['POST'])
+    def webhook():
+        payload = request.data
+        sig = request.headers.get('Stripe-Signature')
+        try:
+            event = stripe.Webhook.construct_event(payload, sig, endpoint_secret)
+        except stripe.error.SignatureVerificationError:
+            return 'Invalid signature', 400
+
+        if event['type'] == 'payment_intent.succeeded':
+            handle_successful_payment(event['data']['object'])
+        elif event['type'] == 'payment_intent.payment_failed':
+            handle_failed_payment(event['data']['object'])
+        return 'OK', 200
+
+  idempotent_processing: |
+    def handle_webhook_idempotently(event_id, handler):
+        if is_event_processed(event_id):
+            return  # Already handled
+        try:
+            handler()
+            mark_event_processed(event_id)
+        except Exception:
+            raise  # Stripe will retry failed webhooks
+
+context: |
+  Payment integration requires careful attention to security (PCI compliance),
+  reliability (idempotent webhook processing), and correctness (integer math
+  for money). Stripe's hosted Checkout minimizes PCI scope by keeping card
+  data off your servers entirely. Webhooks are the authoritative source of
+  payment status because client-side redirects can fail or be manipulated.
+  SCA (Strong Customer Authentication) is required for European payments
+  under PSD2 - use Payment Intents with automatic_payment_methods for
+  compliance. Always test with Stripe's test card numbers covering success,
+  decline, insufficient funds, and 3D Secure scenarios.
+
+related:
+  - owasp-api-security
+  - web-application-security
+
+tags:
+  - payments
+  - stripe
+  - pci
+  - webhooks
+  - subscriptions
+  - sca
+  - fintech

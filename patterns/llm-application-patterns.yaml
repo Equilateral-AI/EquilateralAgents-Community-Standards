@@ -1,0 +1,101 @@
+id: llm-application-patterns
+category: patterns
+priority: 15
+updated: 2026-02-02
+
+title: LLM Application & AI Engineering Patterns
+description: |
+  Production-grade LLM application patterns including RAG architecture,
+  prompt safety, cost optimization, model selection, observability,
+  and AI safety guardrails.
+
+rules:
+  - action: ALWAYS
+    rule: "Implement guardrails for prompt injection, PII detection, and content policy compliance on all LLM inputs and outputs"
+  - action: ALWAYS
+    rule: "Add observability from day one - log prompts, completions, latency, token usage, and costs with tracing (LangSmith, Phoenix)"
+  - action: ALWAYS
+    rule: "Set cost controls with rate limiting, token budgets, and model routing - use cheaper models (Haiku, GPT-4o-mini) for simple tasks"
+  - action: ALWAYS
+    rule: "Implement error handling with fallback models - if primary model fails, route to backup model or cached response"
+  - action: ALWAYS
+    rule: "Use structured outputs (JSON mode, tool use) instead of free-text parsing for reliable LLM responses"
+  - action: ALWAYS
+    rule: "Validate and sanitize all user input before including in prompts - never pass raw user input into system prompts"
+  - action: NEVER
+    rule: "Send sensitive data (PII, credentials, proprietary code) to external LLM APIs without explicit approval and data handling review"
+  - action: NEVER
+    rule: "Deploy LLM features without testing adversarial inputs - prompt injection, jailbreak attempts, and edge cases"
+  - action: NEVER
+    rule: "Use a single model for all tasks without considering cost/latency tradeoffs - route by complexity"
+  - action: PREFER
+    rule: "Implement semantic caching for repeated or similar queries to reduce API costs and latency"
+  - action: PREFER
+    rule: "Use hybrid search (vector + keyword BM25) with reranking for RAG retrieval over vector-only search"
+  - action: PREFER
+    rule: "Implement A/B testing for prompt changes and model upgrades with measured evaluation metrics"
+
+anti_patterns:
+  - "No cost monitoring - discovering $10K API bills at end of month without per-user or per-feature tracking"
+  - "Passing raw user input directly into system prompts enabling prompt injection attacks"
+  - "Using GPT-4 for every request when 80% of queries could be handled by a cheaper, faster model"
+  - "No fallback strategy - entire feature goes down when one model provider has an outage"
+  - "Parsing free-text LLM responses with regex instead of using structured output modes"
+  - "Deploying prompt changes without evaluation - no A/B testing or metric comparison"
+  - "No PII detection - user personal data flowing through to third-party LLM providers"
+
+examples:
+  model_routing: |
+    async function route_to_model(query, complexity):
+        if complexity == 'simple':
+            return await call_model('haiku', query)      # Fast, cheap
+        elif complexity == 'moderate':
+            return await call_model('sonnet', query)     # Balanced
+        else:
+            return await call_model('opus', query)       # Maximum capability
+
+  rag_pipeline: |
+    # 1. Embed query
+    query_embedding = embed(user_query)
+    # 2. Hybrid retrieval (vector + keyword)
+    vector_results = vector_db.search(query_embedding, top_k=20)
+    keyword_results = bm25_search(user_query, top_k=20)
+    # 3. Merge and rerank
+    candidates = merge(vector_results, keyword_results)
+    reranked = reranker.rank(user_query, candidates, top_k=5)
+    # 4. Generate with context
+    response = llm.generate(prompt=user_query, context=reranked)
+
+  cost_controls: |
+    # Per-user rate limiting
+    rate_limiter = RateLimiter(max_requests=100, window='1h', per='user_id')
+    # Token budget per request
+    MAX_INPUT_TOKENS = 4000
+    MAX_OUTPUT_TOKENS = 2000
+    # Semantic cache for repeated queries
+    cached = semantic_cache.get(query, similarity_threshold=0.95)
+    if cached: return cached
+
+context: |
+  LLM applications require production engineering beyond prompt writing. Cost
+  management is critical - token usage scales with users and without controls
+  costs spiral. Model routing sends simple queries to cheap/fast models and
+  complex queries to capable/expensive ones. RAG (Retrieval-Augmented Generation)
+  grounds LLM responses in factual data. Hybrid search (vector + keyword) with
+  reranking outperforms vector-only retrieval. Prompt injection is the #1 security
+  risk - user input must never be trusted in prompt context. Observability tracks
+  quality, cost, and latency across all LLM interactions.
+
+related:
+  - error-handling-resilience
+  - secrets-management-patterns
+
+tags:
+  - llm
+  - ai
+  - rag
+  - prompt-engineering
+  - cost-optimization
+  - model-routing
+  - ai-safety
+  - observability

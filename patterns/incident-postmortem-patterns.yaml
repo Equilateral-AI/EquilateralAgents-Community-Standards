@@ -1,0 +1,96 @@
+id: incident-postmortem-patterns
+category: patterns
+priority: 20
+updated: 2026-02-02
+
+title: Incident Postmortem & Blameless Review
+description: |
+  Blameless postmortem culture, 5 Whys root cause analysis, structured
+  postmortem templates, facilitation guidelines, and action item
+  tracking patterns.
+
+rules:
+  - action: ALWAYS
+    rule: "Conduct postmortems for all SEV1/SEV2 incidents, customer-facing outages >15 min, data loss, and security incidents"
+  - action: ALWAYS
+    rule: "Focus on systems not individuals - ask 'what conditions allowed this?' not 'who caused this?'"
+  - action: ALWAYS
+    rule: "Draft the postmortem within 1-2 days while memory is fresh - hold the review meeting within 3-5 days"
+  - action: ALWAYS
+    rule: "Include a precise timeline with timestamps, exact error messages, and supporting metrics/graphs"
+  - action: ALWAYS
+    rule: "Use 5 Whys analysis to identify root causes - keep asking 'why' until you reach systemic issues"
+  - action: ALWAYS
+    rule: "Create concrete action items with owners, due dates, and ticket numbers - no orphan actions"
+  - action: ALWAYS
+    rule: "Document what went well, what went wrong, and where you got lucky in separate sections"
+  - action: NEVER
+    rule: "Name and shame individuals in postmortem documents - blame kills psychological safety and information sharing"
+  - action: NEVER
+    rule: "Skip postmortems for small incidents - they reveal patterns that predict larger failures"
+  - action: NEVER
+    rule: "Create action items without owners and due dates - unowned actions never get completed"
+  - action: PREFER
+    rule: "Share postmortems widely across the organization for collective learning"
+  - action: PREFER
+    rule: "Review postmortem action item completion quarterly and track patterns across incidents"
+
+anti_patterns:
+  - "Blame game - focusing on who made the mistake instead of why the system allowed it"
+  - "Shallow analysis - stopping at the proximate cause without asking why 5 times"
+  - "No action items - discussing the incident without committing to concrete improvements"
+  - "Unrealistic action items that never get completed - scope to achievable tasks"
+  - "No follow-up - creating tickets but never verifying they were completed"
+  - "Postmortem written weeks later when details have faded from memory"
+
+examples:
+  five_whys: |
+    Problem: Payment service 47-minute outage
+    Why 1: Database connections exhausted
+    Why 2: Each request opened a new connection (bypassed pool)
+    Why 3: Code refactor changed connection acquisition method
+    Why 4: Code review focused on business logic, missed infra change
+    Why 5: No automated tests for connection pool behavior
+
+    Root causes:
+    1. Missing infrastructure behavior tests (prevention)
+    2. Code review checklist missing infra considerations (detection)
+    3. No canary deployment to catch under real traffic (mitigation)
+
+  action_item_format: |
+    | Priority | Action                                  | Owner  | Due        | Ticket   |
+    |----------|-----------------------------------------|--------|------------|----------|
+    | P0       | Add connection pool integration test    | @alice | 2024-01-22 | ENG-1234 |
+    | P1       | Lower DB connection alert threshold     | @bob   | 2024-01-17 | OPS-567  |
+    | P2       | Evaluate canary deployment strategy     | @charlie| 2024-02-15 | ENG-1235 |
+
+  postmortem_timeline: |
+    Day 0:     Incident occurs
+    Day 1-2:   Draft postmortem document
+    Day 3-5:   Postmortem meeting (60 min)
+    Day 5-7:   Finalize document, create tickets
+    Week 2+:   Action item completion
+    Quarterly: Review patterns across incidents
+
+context: |
+  Blameless postmortems are the foundation of organizational learning from
+  incidents. Google SRE, Etsy, and PagerDuty have proven that blame-focused
+  cultures suppress information sharing while blameless cultures improve
+  reliability. The 5 Whys technique drives past symptoms to systemic root
+  causes. Three sections (what went well, what went wrong, where we got lucky)
+  provide balanced perspective. Action items must be tracked in the ticketing
+  system with owners and due dates. Quarterly pattern reviews across incidents
+  reveal systemic weaknesses.
+
+related:
+  - deployment-safety-patterns
+  - code-review-standards
+
+tags:
+  - incident-response
+  - postmortem
+  - blameless
+  - root-cause-analysis
+  - five-whys
+  - sre
+  - reliability

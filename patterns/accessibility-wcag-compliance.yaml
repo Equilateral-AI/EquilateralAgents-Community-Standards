@@ -1,0 +1,103 @@
+id: accessibility-wcag-compliance
+category: patterns
+priority: 10
+updated: 2026-02-02
+
+title: Accessibility & WCAG 2.2 Compliance
+description: |
+  WCAG 2.2 AA/AAA compliance patterns including semantic HTML, keyboard
+  navigation, ARIA, color contrast, focus management, screen reader
+  support, and mobile accessibility.
+
+rules:
+  - action: ALWAYS
+    rule: "Use semantic HTML elements (button, nav, main, header, form) before reaching for ARIA roles"
+  - action: ALWAYS
+    rule: "Provide text alternatives for all non-text content - alt text on images, aria-label on icon buttons"
+  - action: ALWAYS
+    rule: "Ensure all interactive elements are keyboard accessible with visible focus indicators - never remove outline"
+  - action: ALWAYS
+    rule: "Meet color contrast ratios: 4.5:1 for normal text, 3:1 for large text (18pt+), 3:1 for UI components (WCAG AA)"
+  - action: ALWAYS
+    rule: "Implement skip navigation links as the first focusable element to bypass repetitive content"
+  - action: ALWAYS
+    rule: "Trap focus inside modal dialogs and close on Escape key - use role=dialog with aria-modal=true"
+  - action: ALWAYS
+    rule: "Set aria-required, aria-invalid, and aria-describedby on form fields - link error messages to their fields"
+  - action: ALWAYS
+    rule: "Ensure minimum touch target size of 24x24px (WCAG 2.2 AA) or 44x44px (AAA) for interactive elements"
+  - action: NEVER
+    rule: "Remove focus outlines without providing an alternative visible focus indicator"
+  - action: NEVER
+    rule: "Use color alone to convey information - always provide a secondary indicator (icon, text, pattern)"
+  - action: NEVER
+    rule: "Auto-play media without user initiation - provide explicit play controls"
+  - action: PREFER
+    rule: "Use aria-live regions to announce dynamic content changes to screen readers - polite for updates, assertive for errors"
+  - action: PREFER
+    rule: "Respect prefers-reduced-motion and prefers-contrast media queries for user preference adaptation"
+  - action: PREFER
+    rule: "Test with real screen readers (VoiceOver, NVDA) and keyboard-only navigation, not just automated tools"
+
+anti_patterns:
+  - "Missing alt text on images - screen readers announce the filename instead"
+  - "Removing CSS outline on focus without providing alternative focus styles"
+  - "Keyboard traps where focus gets stuck in a component with no way to Tab out"
+  - "Missing labels on form inputs - screen readers cannot identify the field purpose"
+  - "Using div and span for interactive elements instead of native button and a elements"
+  - "Tab order that does not match visual layout order confusing keyboard users"
+  - "Color contrast below 4.5:1 making text unreadable for low-vision users"
+
+examples:
+  accessible_form_field: |
+    <label htmlFor="email">
+      Email address
+      <span aria-hidden="true" className="text-red-500">*</span>
+      <span className="sr-only">(required)</span>
+    </label>
+    <input id="email" type="email"
+      aria-required="true"
+      aria-invalid={!!errors.email}
+      aria-describedby={errors.email ? "email-error" : "email-hint"} />
+    {errors.email
+      ? <p id="email-error" role="alert">{errors.email}</p>
+      : <p id="email-hint">We'll never share your email.</p>}
+
+  skip_navigation: |
+    <!-- First focusable element in DOM -->
+    <a href="#main-content" className="sr-only focus:not-sr-only focus:absolute">
+      Skip to main content
+    </a>
+    <nav aria-label="Main navigation">...</nav>
+    <main id="main-content" tabIndex={-1}>...</main>
+
+  live_region: |
+    <!-- Always in DOM, announce dynamic changes -->
+    <div role="status" aria-live="polite" aria-atomic="true" className="sr-only">
+      {searchResults.length} results found
+    </div>
+
+context: |
+  Web accessibility ensures content is usable by people with disabilities
+  including visual, auditory, motor, and cognitive impairments. WCAG 2.2
+  (Web Content Accessibility Guidelines) defines four principles: Perceivable,
+  Operable, Understandable, Robust. Level AA is the standard legal requirement
+  in most jurisdictions (ADA, EAA, Section 508). Semantic HTML provides
+  accessibility for free - native button, input, and nav elements have built-in
+  keyboard and screen reader support. ARIA should supplement, not replace,
+  semantic HTML. Automated tools (axe, Lighthouse) catch ~30% of issues -
+  manual testing with keyboard and screen readers is essential.
+
+related:
+  - web-performance-optimization
+  - code-review-standards
+
+tags:
+  - accessibility
+  - wcag
+  - a11y
+  - aria
+  - keyboard-navigation
+  - screen-reader
+  - focus-management
+  - contrast

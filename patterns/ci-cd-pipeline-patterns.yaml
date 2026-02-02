@@ -1,0 +1,108 @@
+id: ci-cd-pipeline-patterns
+category: patterns
+priority: 15
+updated: 2026-02-02
+
+title: CI/CD Pipeline & GitHub Actions Patterns
+description: |
+  Production-ready CI/CD workflow patterns including matrix testing, Docker
+  builds with layer caching, security scanning, reusable workflows,
+  deployment approvals, and secrets handling.
+
+rules:
+  - action: ALWAYS
+    rule: "Pin action versions to specific tags (@v4, not @latest) to prevent breakage from upstream changes"
+  - action: ALWAYS
+    rule: "Use npm ci (not npm install) in CI for deterministic, reproducible dependency installation"
+  - action: ALWAYS
+    rule: "Set explicit permissions blocks on workflows with least-privilege access - never use default write-all"
+  - action: ALWAYS
+    rule: "Cache dependencies (npm, pip, Docker layers) to reduce build times - use built-in cache options in setup actions"
+  - action: ALWAYS
+    rule: "Run security scanning (Trivy, Snyk, npm audit) in CI pipeline and upload results to GitHub Security tab"
+  - action: ALWAYS
+    rule: "Use GitHub Environments with required reviewers for production deployments"
+  - action: ALWAYS
+    rule: "Mask secrets in CI logs with add-mask directives - never echo secrets to stdout"
+  - action: NEVER
+    rule: "Hardcode credentials in workflow files - use GitHub Secrets or external secret managers"
+  - action: NEVER
+    rule: "Use @latest or @main for action versions in production workflows - pin to specific release tags"
+  - action: NEVER
+    rule: "Skip CI checks on pull requests - require passing status checks before merge"
+  - action: PREFER
+    rule: "Use matrix builds to test across multiple OS/language versions simultaneously"
+  - action: PREFER
+    rule: "Extract common workflow steps into reusable workflows (workflow_call) to reduce duplication"
+  - action: PREFER
+    rule: "Use Docker build cache (type=gha) for GitHub Actions to speed up container builds"
+
+anti_patterns:
+  - "Using @latest for actions causing random build failures when actions release breaking changes"
+  - "npm install in CI which may resolve different versions than lockfile specifies"
+  - "Default permissions granting write access to all scopes when only read is needed"
+  - "No dependency caching causing 5+ minute installs on every run"
+  - "No security scanning in pipeline - vulnerabilities discovered only in production"
+  - "Direct push to production without environment approval gates"
+
+examples:
+  matrix_test: |
+    strategy:
+      matrix:
+        node-version: [18.x, 20.x]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'npm'
+      - run: npm ci
+      - run: npm test
+
+  docker_build_cache: |
+    - uses: docker/build-push-action@v5
+      with:
+        context: .
+        push: true
+        tags: ${{ steps.meta.outputs.tags }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+
+  reusable_workflow: |
+    # Definition (.github/workflows/reusable-test.yml)
+    on:
+      workflow_call:
+        inputs:
+          node-version:
+            required: true
+            type: string
+
+    # Caller
+    jobs:
+      test:
+        uses: ./.github/workflows/reusable-test.yml
+        with:
+          node-version: '20.x'
+
+context: |
+  CI/CD pipelines automate testing, building, and deploying code. GitHub Actions
+  is the most common CI/CD platform for GitHub-hosted projects. Pinning action
+  versions prevents supply chain attacks and unexpected breakage. Matrix builds
+  catch compatibility issues across runtimes and operating systems. Reusable
+  workflows reduce duplication across repos. Security scanning in CI catches
+  vulnerabilities before deployment. Environment protection rules enforce
+  approval gates on production deployments.
+
+related:
+  - deployment-safety-patterns
+  - secrets-management-patterns
+  - container-security-patterns
+
+tags:
+  - ci-cd
+  - github-actions
+  - pipeline
+  - testing
+  - docker
+  - security-scanning
+  - deployment
