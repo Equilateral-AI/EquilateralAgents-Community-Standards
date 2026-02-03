@@ -1,0 +1,127 @@
+id: graphql-api-patterns
+category: patterns
+priority: 20
+updated: 2026-02-03
+
+title: GraphQL API Design & Security Patterns
+description: |
+  Production patterns for GraphQL APIs including schema design, query complexity
+  limits, N+1 prevention, authentication, and performance optimization. Proper
+  GraphQL security prevents abuse while maintaining the flexibility clients expect.
+
+rules:
+  - action: ALWAYS
+    rule: "Set query depth limits and complexity scoring to prevent abusive nested queries - reject queries exceeding a configured cost threshold before execution"
+  - action: ALWAYS
+    rule: "Implement DataLoader or equivalent batching to prevent N+1 query problems in resolvers - batch and deduplicate database calls per request cycle"
+  - action: ALWAYS
+    rule: "Use persisted/allowlisted queries in production - disable arbitrary query execution from clients to reduce attack surface and improve cacheability"
+  - action: ALWAYS
+    rule: "Implement field-level authorization - not all fields should be visible to all roles, check permissions in resolver middleware before returning data"
+  - action: ALWAYS
+    rule: "Paginate list fields using cursor-based connections (Relay spec) over offset pagination - return edges, nodes, and pageInfo with hasNextPage and endCursor"
+  - action: ALWAYS
+    rule: "Version schema changes additively - deprecate fields with @deprecated directive before removal, never remove without a minimum deprecation period"
+  - action: NEVER
+    rule: "Expose internal database IDs directly - use opaque global IDs (base64-encoded type:id) to decouple clients from backend storage implementation"
+  - action: NEVER
+    rule: "Allow introspection in production environments - it exposes your entire schema to attackers and enables automated vulnerability discovery"
+  - action: NEVER
+    rule: "Return unbounded lists - all list fields must have a maximum limit argument with a server-enforced cap (e.g., first/last max 100)"
+  - action: NEVER
+    rule: "Put business logic in resolvers - resolvers should delegate to service/domain layer and only handle data shaping and authorization checks"
+  - action: PREFER
+    rule: "Schema-first design over code-first - define the schema contract before implementation so frontend and backend teams can work in parallel"
+  - action: PREFER
+    rule: "Federated schemas for microservice architectures over monolithic schemas - each service owns and extends its portion of the graph"
+  - action: PREFER
+    rule: "Query cost analysis with automatic rejection over rate limiting by request count alone - a single expensive query can be worse than 100 cheap ones"
+
+anti_patterns:
+  - "No depth limits allowing recursive query attacks - a malicious query nesting 50 levels deep can consume all server resources"
+  - "Resolvers with direct database queries causing N+1 - fetching a list of 100 users each triggering a separate query for their posts"
+  - "Introspection enabled in production exposing the entire schema, all types, and field descriptions to unauthenticated users"
+  - "Unbounded list returns causing out-of-memory - a query requesting all records in a table with no limit crashes the server"
+  - "Business logic in resolvers making them untestable and duplicated across queries and mutations that touch the same domain"
+  - "No field-level authorization exposing sensitive data - all authenticated users can see salary, SSN, or internal notes fields"
+  - "Breaking schema changes without deprecation - removing a field that mobile clients depend on causes app crashes in production"
+
+examples:
+  dataloader_batching: |
+    // DataLoader batches individual user lookups into a single query
+    const userLoader = new DataLoader(async (userIds) => {
+      const users = await db.users.findByIds(userIds);
+      const userMap = new Map(users.map(u => [u.id, u]));
+      return userIds.map(id => userMap.get(id) || null);
+    });
+
+    // Resolver calls loader.load() instead of direct DB query
+    const resolvers = {
+      Post: {
+        author: (post, args, { loaders }) => loaders.user.load(post.authorId)
+      }
+    };
+    // 100 posts = 1 batched query for all unique authorIds, not 100 queries
+
+  query_complexity: |
+    // Assign cost to each field and reject queries exceeding threshold
+    const costDirective = {
+      Query: {
+        users: { complexity: (args) => args.first * 2 },  // cost scales with page size
+        posts: { complexity: (args) => args.first * 3 }
+      },
+      User: {
+        posts: { complexity: (args) => args.first * 2 }   // nested list multiplies
+      }
+    };
+    // Maximum allowed cost: 1000 per query
+    // query { users(first: 50) { posts(first: 20) { ... } } }
+    // Cost: 50 * 2 + (50 * 20 * 2) = 2100 -> REJECTED
+
+  cursor_pagination: |
+    type Query {
+      users(first: Int, after: String, last: Int, before: String): UserConnection!
+    }
+
+    type UserConnection {
+      edges: [UserEdge!]!
+      pageInfo: PageInfo!
+      totalCount: Int!
+    }
+
+    type UserEdge {
+      cursor: String!
+      node: User!
+    }
+
+    type PageInfo {
+      hasNextPage: Boolean!
+      hasPreviousPage: Boolean!
+      startCursor: String
+      endCursor: String
+    }
+
+context: |
+  GraphQL's flexibility is a double-edged sword - clients can construct arbitrary
+  queries that overwhelm backends if uncontrolled. Query depth limits and complexity
+  scoring prevent denial-of-service through deeply nested or wide queries. DataLoader
+  solves the N+1 problem inherent in GraphQL's resolver-per-field architecture by
+  batching and deduplicating database calls within a single request. Persisted queries
+  restrict clients to pre-approved operations, dramatically reducing attack surface.
+  Cursor-based pagination (Relay spec) handles data mutations between pages better
+  than offset-based. Schema federation allows each microservice to own its portion
+  of the graph while presenting a unified API to clients. Disabling introspection
+  in production prevents attackers from discovering your entire type system.
+
+related:
+  - api-design-rest-patterns
+  - owasp-api-security
+
+tags:
+  - graphql
+  - api
+  - schema
+  - dataloader
+  - pagination
+  - security
+  - federation

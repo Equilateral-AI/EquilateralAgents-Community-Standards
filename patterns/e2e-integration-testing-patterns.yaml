@@ -1,0 +1,116 @@
+id: e2e-integration-testing-patterns
+category: patterns
+priority: 20
+updated: 2026-02-03
+
+title: E2E & Integration Testing Patterns
+description: |
+  Patterns for end-to-end and integration testing including test isolation,
+  fixture management, flaky test mitigation, and test environment management.
+  Integration tests catch the bugs that unit tests miss at system boundaries.
+
+rules:
+  - action: ALWAYS
+    rule: "Ensure test isolation - each test is independent with no shared mutable state between tests, runs correctly in any order, and can execute in parallel"
+  - action: ALWAYS
+    rule: "Use real dependencies for integration tests (testcontainers, docker-compose) over mocks - mocks cannot catch serialization, timeout, and compatibility bugs"
+  - action: ALWAYS
+    rule: "Apply the page object pattern for E2E tests - encapsulate page interactions in reusable objects so selector changes only require updates in one place"
+  - action: ALWAYS
+    rule: "Implement retry logic for flaky network-dependent tests but investigate and fix the root cause - retries are a temporary bandage, not a permanent solution"
+  - action: ALWAYS
+    rule: "Use test data factories (factory functions or builder pattern) over shared fixtures - each test creates exactly the data it needs with sensible defaults"
+  - action: PREFER
+    rule: "Run tests in parallel with isolated databases or state per test worker - use per-test schemas, database transactions with rollback, or ephemeral containers"
+  - action: PREFER
+    rule: "Include visual regression testing for UI changes - screenshot comparison catches unintended layout shifts that functional tests miss"
+  - action: ALWAYS
+    rule: "Implement API contract testing between services - verify request/response schemas at the boundary so services can evolve independently without breaking consumers"
+  - action: ALWAYS
+    rule: "Maintain test environment parity with production - same database engine, same OS, same major dependency versions to avoid environment-specific bugs"
+  - action: ALWAYS
+    rule: "Clean up after every test - delete created records, reset modified state, release resources so subsequent tests start from a known state"
+  - action: ALWAYS
+    rule: "Write descriptive test names that document expected behavior - 'should return 404 when order does not exist' not 'test order error'"
+  - action: ALWAYS
+    rule: "Limit E2E tests to critical user journeys (login, checkout, core workflows) - cover edge cases with faster unit and integration tests instead"
+
+anti_patterns:
+  - "Tests that depend on execution order - test B passes only if test A runs first because A creates data that B relies on"
+  - "Mocking the database in integration tests - defeats the purpose by not testing actual query behavior, constraints, and transactions"
+  - "Ignoring flaky tests with skip annotations instead of investigating root causes - flaky tests erode trust in the entire test suite"
+  - "Shared test fixtures modified by multiple tests - one test's setup becomes another test's unexpected precondition"
+  - "E2E tests for every edge case creating a suite that takes 45 minutes to run - slow feedback loops cause developers to stop running tests"
+  - "Testing against production databases or third-party APIs without sandboxing - tests can corrupt real data or exhaust API quotas"
+
+examples:
+  page_object_pattern: |
+    // Page object encapsulates selectors and interactions
+    class LoginPage {
+      constructor(page) {
+        this.page = page;
+        this.emailInput = page.locator('[data-testid="email"]');
+        this.passwordInput = page.locator('[data-testid="password"]');
+        this.submitButton = page.locator('[data-testid="login-submit"]');
+        this.errorMessage = page.locator('[data-testid="login-error"]');
+      }
+
+      async login(email, password) {
+        await this.emailInput.fill(email);
+        await this.passwordInput.fill(password);
+        await this.submitButton.click();
+      }
+    }
+
+    // Test reads like a user story
+    test('should show error for invalid credentials', async ({ page }) => {
+      const loginPage = new LoginPage(page);
+      await loginPage.login('user@example.com', 'wrong-password');
+      await expect(loginPage.errorMessage).toHaveText('Invalid email or password');
+    });
+
+  test_data_factory: |
+    // Factory with sensible defaults and overrides
+    function createTestUser(overrides = {}) {
+      return {
+        id: randomUUID(),
+        email: `test-${randomUUID()}@example.com`,
+        name: 'Test User',
+        role: 'member',
+        createdAt: new Date(),
+        ...overrides,
+      };
+    }
+
+    // Each test creates exactly what it needs
+    test('admin can delete other users', async () => {
+      const admin = await insertUser(createTestUser({ role: 'admin' }));
+      const target = await insertUser(createTestUser({ role: 'member' }));
+      const response = await api.delete(`/users/${target.id}`, { as: admin });
+      expect(response.status).toBe(204);
+    });
+
+context: |
+  Integration and E2E tests verify that components work together correctly -
+  catching bugs at boundaries that unit tests with mocks cannot. Test isolation
+  is the most important principle: dependent tests create cascading failures
+  that are painful to debug. Testcontainers and docker-compose provide real
+  dependencies (databases, queues, caches) that behave identically to production.
+  The page object pattern decouples test logic from UI implementation, making
+  tests resilient to selector changes. Test data factories avoid the fragile
+  shared fixture problem where changing one fixture breaks unrelated tests.
+  E2E tests are expensive to run and maintain, so they should cover critical
+  paths while faster tests cover edge cases.
+
+related:
+  - tdd-methodology
+  - ci-cd-pipeline-patterns
+
+tags:
+  - testing
+  - e2e
+  - integration
+  - playwright
+  - testcontainers
+  - fixtures
+  - isolation

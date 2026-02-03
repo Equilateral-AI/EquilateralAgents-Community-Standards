@@ -1,0 +1,97 @@
+id: agent-trust-scoring
+category: patterns
+priority: 20
+updated: 2026-02-03
+
+title: Agent Trust & Reputation Scoring
+description: |
+  Trust scoring patterns for multi-agent systems including outcome-based
+  scoring, tier-based privilege management, trust decay, and reputation-driven
+  rate limiting.
+
+rules:
+  - action: ALWAYS
+    rule: "Assign initial trust scores to new agents at the standard tier, not trusted - trust must be earned through successful outcomes"
+  - action: ALWAYS
+    rule: "Track per-agent outcomes and adjust trust scores: successful task completion (+), denied/blocked actions (-), warnings (-)"
+  - action: ALWAYS
+    rule: "Implement 4 trust tiers with corresponding privileges: trusted (expanded access), standard (normal), probation (restricted), untrusted (read-only)"
+  - action: ALWAYS
+    rule: "Apply trust decay for inactive agents - trust scores decrease toward baseline over time without positive activity"
+  - action: ALWAYS
+    rule: "Adjust rate limits based on trust tier - higher trust allows more operations per time window"
+  - action: ALWAYS
+    rule: "Persist trust scores across sessions - reputation should compound, not reset"
+  - action: NEVER
+    rule: "Allow agents to modify their own trust scores or tier assignments"
+  - action: NEVER
+    rule: "Allow untrusted agents to write to shared resources, execute tools, or spawn sub-agents"
+  - action: NEVER
+    rule: "Promote agents more than one tier at a time - trust escalation must be gradual"
+  - action: PREFER
+    rule: "Automatic demotion on repeated failures over manual intervention"
+  - action: PREFER
+    rule: "Transparent trust scoring (agents can read their own score) over opaque scoring"
+  - action: PREFER
+    rule: "Trust scores that weight recent outcomes more heavily than historical ones"
+
+anti_patterns:
+  - "All agents start at maximum trust - bypasses the earn-trust principle and removes incentive for reliable behavior"
+  - "No consequence for failed operations - trust scores never decrease, removing accountability"
+  - "Trust resets between sessions - agents lose all earned reputation, preventing long-term reliability tracking"
+  - "Untrusted agents with full write access - defeats the purpose of tiered privilege management"
+  - "Self-reported trust scores - agents can inflate their own reputation without external validation"
+  - "No gradual demotion - agents jump from trusted to untrusted without intermediate corrective steps"
+
+examples:
+  trust_tier_table: |
+    # Trust Tiers, Privileges, and Rate Limits
+    # ─────────────────────────────────────────────────────
+    # Tier        Score Range  Privileges              Rate Limit
+    # trusted     80-100       expanded access,        100 ops/min
+    #                          spawn sub-agents,
+    #                          write shared resources
+    # standard    50-79        normal tool access,     50 ops/min
+    #                          read/write own scope
+    # probation   25-49        restricted tools,       20 ops/min
+    #                          read + limited write
+    # untrusted   0-24         read-only access,       5 ops/min
+    #                          no tool execution
+
+  scoring_adjustment: |
+    function adjustTrustScore(agent, outcome) {
+      const weights = {
+        task_success:    +3,
+        task_failure:    -2,
+        action_denied:   -5,
+        warning_issued:  -1,
+        idle_decay:      -0.1  // per hour of inactivity
+      };
+      const recencyMultiplier = 1.0 / (1 + daysSinceLastAction(agent) * 0.05);
+      const delta = weights[outcome] * recencyMultiplier;
+      agent.trustScore = clamp(agent.trustScore + delta, 0, 100);
+      agent.tier = computeTier(agent.trustScore);
+      persistTrustScore(agent);
+    }
+
+context: |
+  Derived from agent governance patterns in multi-agent orchestration systems.
+  In systems where multiple agents operate concurrently, trust scoring provides
+  a mechanism to reward reliable agents with expanded access while restricting
+  agents that demonstrate unreliable or harmful behavior. Trust must be earned
+  through demonstrated outcomes, not assumed. The tier system ensures that
+  privilege escalation is gradual and that agents cannot self-promote. Trust
+  decay prevents stale high scores from granting unearned access to dormant
+  agents.
+
+related:
+  - agent-authority-hierarchy
+  - agent-memory-governance
+
+tags:
+  - trust
+  - reputation
+  - scoring
+  - multi-agent
+  - privileges
+  - rate-limiting

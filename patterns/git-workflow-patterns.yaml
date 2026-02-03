@@ -1,0 +1,101 @@
+id: git-workflow-patterns
+category: patterns
+priority: 20
+updated: 2026-02-03
+
+title: Git Workflow & Version Control Patterns
+description: |
+  Patterns for team Git workflows including branching strategies, commit
+  conventions, code review gates, and release management. A consistent Git
+  workflow reduces merge conflicts and makes history navigable.
+
+rules:
+  - action: ALWAYS
+    rule: "Follow conventional commits format - type(scope): description - where type is feat, fix, chore, docs, refactor, test, perf, or ci"
+  - action: ALWAYS
+    rule: "Create feature branches from main with short lifetimes (under 3 days) - long-lived branches accumulate merge conflicts and integration risk"
+  - action: ALWAYS
+    rule: "Protect the main branch - require at least one PR review approval, passing CI checks, and no force-pushes"
+  - action: PREFER
+    rule: "Use squash merge or rebase merge for clean linear history - merge commits add noise when the branch history is exploratory"
+  - action: ALWAYS
+    rule: "Write commit messages that explain why the change was made, not what changed - the diff shows what, the message should explain the motivation"
+  - action: NEVER
+    rule: "Force-push to shared branches (main, develop, release/*) - rewriting shared history causes lost work and broken local checkouts for the team"
+  - action: ALWAYS
+    rule: "Maintain a comprehensive .gitignore covering generated files, build artifacts, IDE configs, OS files, and secret files (.env, credentials) for the project's tech stack"
+  - action: ALWAYS
+    rule: "Follow branch naming conventions - feature/short-description, fix/issue-number-description, chore/description, release/x.y.z"
+  - action: PREFER
+    rule: "Keep PRs under 400 lines of meaningful changes - large PRs get rubber-stamped, small PRs get thorough reviews"
+  - action: ALWAYS
+    rule: "Make atomic commits - each commit represents one logical change that compiles and passes tests independently"
+  - action: ALWAYS
+    rule: "Tag releases with semantic versioning (vMAJOR.MINOR.PATCH) and include a changelog entry describing user-facing changes"
+  - action: ALWAYS
+    rule: "Never commit secrets to git history - use pre-commit hooks (git-secrets, detect-secrets) to scan for API keys, passwords, and tokens before they enter the repository"
+
+anti_patterns:
+  - "Mega-PRs with 2000+ lines touching 40 files across multiple concerns - impossible to review thoroughly, often rubber-stamped"
+  - "Commit messages like 'fix', 'wip', 'stuff', 'asdf' providing zero context for future developers reading history"
+  - "Long-lived feature branches open for weeks that become increasingly painful to merge and diverge from production"
+  - "Force-pushing to main or shared branches causing teammates to lose their local work and breaking CI pipelines"
+  - "Committing .env files, API keys, or credentials - even after deletion they persist in git history and require history rewriting to remove"
+  - "Merging without CI checks passing - introducing broken code to main that blocks the entire team"
+
+examples:
+  conventional_commits: |
+    # Good commit messages
+    feat(auth): add OAuth2 PKCE flow for mobile clients
+    fix(payments): handle race condition in concurrent refund requests
+    chore(deps): upgrade express to 4.19.0 for CVE-2024-1234
+    docs(api): add rate limiting section to API reference
+    refactor(orders): extract discount calculation into pure function
+
+    # Bad commit messages
+    fix stuff
+    WIP
+    update code
+    PR feedback
+    asdf
+
+  branch_workflow: |
+    # Create feature branch
+    git checkout main
+    git pull origin main
+    git checkout -b feature/user-avatar-upload
+
+    # Work in small atomic commits
+    git commit -m "feat(profile): add avatar upload API endpoint"
+    git commit -m "feat(profile): add image resizing for avatar thumbnails"
+    git commit -m "test(profile): add integration tests for avatar upload flow"
+
+    # Keep branch up to date
+    git fetch origin
+    git rebase origin/main
+
+    # Open PR when ready
+    gh pr create --title "feat(profile): add user avatar upload"
+
+context: |
+  Git workflows codify how a team collaborates on code. Conventional commits
+  enable automated changelog generation and semantic version bumping. Short-lived
+  branches reduce integration risk - the longer a branch lives, the more it
+  diverges from main and the harder the merge. Protected branches prevent
+  accidental pushes to production code. Atomic commits make git bisect effective
+  for finding regressions. Small PRs receive better reviews because reviewers
+  can hold the full context in their head. Secrets in git history are extremely
+  difficult to fully remove and often end up in leaked database dumps - prevention
+  via pre-commit hooks is far cheaper than remediation.
+
+related:
+  - ci-cd-pipeline-patterns
+  - code-review-standards
+
+tags:
+  - git
+  - version-control
+  - branching
+  - commits
+  - code-review
+  - workflow

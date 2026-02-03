@@ -1,0 +1,130 @@
+id: typescript-patterns
+category: patterns
+priority: 20
+updated: 2026-02-03
+
+title: TypeScript Type Safety & Code Patterns
+description: |
+  Patterns for leveraging TypeScript's type system effectively including strict
+  mode, type narrowing, generic patterns, runtime validation, and avoiding type
+  escape hatches. Strong types catch bugs at compile time instead of production.
+
+rules:
+  - action: ALWAYS
+    rule: "Enable strict mode (strict: true in tsconfig.json) - this activates strictNullChecks, noImplicitAny, and other checks that prevent entire categories of runtime errors"
+  - action: ALWAYS
+    rule: "Use discriminated unions with a literal type tag over type assertions for variant handling - the compiler enforces exhaustive handling of all cases"
+  - action: ALWAYS
+    rule: "Validate data at system boundaries (API inputs, file reads, env vars) with Zod or Valibot schemas that infer TypeScript types - never trust external data shapes"
+  - action: ALWAYS
+    rule: "Use unknown instead of any for truly unknown types, then narrow with type guards - any disables type checking entirely and propagates unsafety"
+  - action: ALWAYS
+    rule: "Constrain generics with extends clauses - function merge<T extends object>(a: T, b: Partial<T>) is safer than unconstrained <T>"
+  - action: PREFER
+    rule: "Use const assertions (as const) for literal types and static configuration objects instead of enums - enums generate runtime code and have surprising edge cases"
+  - action: ALWAYS
+    rule: "Handle all cases in switch statements exhaustively using the never type - the compiler will error if a new union member is added but not handled"
+  - action: PREFER
+    rule: "Use branded/nominal types for domain identifiers to prevent mixing - type UserId = string & { readonly __brand: 'UserId' } prevents passing an OrderId where a UserId is expected"
+  - action: PREFER
+    rule: "Use utility types (Pick, Omit, Partial, Required, Record) to derive types from existing ones rather than manually duplicating type definitions"
+  - action: PREFER
+    rule: "Model errors as values with Result<T, E> types (or discriminated union {ok: true, data: T} | {ok: false, error: E}) over thrown exceptions for expected failure cases"
+  - action: NEVER
+    rule: "Use type assertions (as) to silence the compiler - prefer type guards (value is Type), narrowing with typeof/instanceof, or fixing the actual type mismatch"
+  - action: PREFER
+    rule: "Use the satisfies operator for type checking without widening - const config = { port: 3000 } satisfies Config preserves the literal type while validating shape"
+
+anti_patterns:
+  - "Using 'any' to make the compiler stop complaining - this disables all type safety and defeats the purpose of TypeScript"
+  - "Type assertions (as) scattered throughout code to paper over type mismatches instead of fixing the underlying types"
+  - "Disabling strict mode or adding @ts-ignore comments instead of properly typing code - accumulates technical debt"
+  - "Not validating external data at API boundaries - trusting that JSON.parse returns the expected type without runtime validation"
+  - "String-typed IDs allowing accidental userId = orderId assignments - no compile-time protection for domain identity confusion"
+  - "Thrown exceptions for expected business cases (user not found, validation failed) with no type information about possible failures"
+
+examples:
+  discriminated_union: |
+    // Good: discriminated union with exhaustive handling
+    type ApiResult =
+      | { status: 'success'; data: User }
+      | { status: 'not_found'; id: string }
+      | { status: 'error'; message: string };
+
+    function handleResult(result: ApiResult): string {
+      switch (result.status) {
+        case 'success':
+          return `Found user: ${result.data.name}`;
+        case 'not_found':
+          return `User ${result.id} not found`;
+        case 'error':
+          return `Error: ${result.message}`;
+        default:
+          const _exhaustive: never = result;
+          return _exhaustive; // Compile error if a case is missing
+      }
+    }
+
+  branded_types: |
+    // Branded types prevent mixing identifiers
+    type UserId = string & { readonly __brand: 'UserId' };
+    type OrderId = string & { readonly __brand: 'OrderId' };
+
+    function createUserId(id: string): UserId { return id as UserId; }
+    function createOrderId(id: string): OrderId { return id as OrderId; }
+
+    function getUser(id: UserId): User { /* ... */ }
+    function getOrder(id: OrderId): Order { /* ... */ }
+
+    const userId = createUserId('usr_123');
+    const orderId = createOrderId('ord_456');
+
+    getUser(userId);    // OK
+    getUser(orderId);   // Compile error - OrderId is not assignable to UserId
+
+  runtime_validation: |
+    import { z } from 'zod';
+
+    // Schema defines both runtime validation and TypeScript type
+    const UserSchema = z.object({
+      id: z.string().uuid(),
+      email: z.string().email(),
+      role: z.enum(['admin', 'member', 'viewer']),
+      createdAt: z.string().datetime(),
+    });
+
+    type User = z.infer<typeof UserSchema>; // Type derived from schema
+
+    // Validate at system boundary
+    app.post('/users', (req, res) => {
+      const result = UserSchema.safeParse(req.body);
+      if (!result.success) {
+        return res.status(400).json({ errors: result.error.flatten() });
+      }
+      // result.data is fully typed as User
+      createUser(result.data);
+    });
+
+context: |
+  TypeScript's value is proportional to how strictly it is used. Strict mode
+  catches null pointer errors, implicit any types, and other common JavaScript
+  bugs at compile time. Discriminated unions model domain states precisely and
+  the compiler ensures all states are handled. Runtime validation at boundaries
+  (Zod, Valibot) bridges the gap between compile-time types and runtime reality -
+  external data is always unknown until validated. Branded types prevent identifier
+  confusion that string types allow. The satisfies operator added in TypeScript 4.9
+  enables type validation without losing literal type information. Result types make
+  error handling explicit in function signatures rather than hidden in throw
+  statements that callers may forget to catch.
+
+related:
+  - clean-code-principles
+  - react-component-patterns
+
+tags:
+  - typescript
+  - types
+  - type-safety
+  - generics
+  - validation
+  - strict-mode

@@ -1,0 +1,143 @@
+id: data-validation-patterns
+category: patterns
+priority: 15
+updated: 2026-02-03
+
+title: Data Validation & Schema Enforcement Patterns
+description: |
+  Patterns for validating data at system boundaries including schema validation
+  libraries, input sanitization, type coercion safety, and error message design.
+  Robust validation is the first line of defense against both bugs and security
+  vulnerabilities.
+
+rules:
+  - action: ALWAYS
+    rule: "Validate at system boundaries (API inputs, form submissions, file uploads, message queue consumers) - trust nothing from outside"
+  - action: ALWAYS
+    rule: "Use schema validation libraries (Zod, Joi, Yup, Pydantic, JSON Schema) over manual if/else validation chains"
+  - action: ALWAYS
+    rule: "Validate both type and business rules - schema validates shape, business logic validates semantics (is this date in the future? does this user exist?)"
+  - action: ALWAYS
+    rule: "Return all validation errors at once - do not stop at the first error and make users fix one at a time"
+  - action: ALWAYS
+    rule: "Sanitize HTML content to prevent XSS - use allowlist-based sanitizers, not denylist-based regex"
+  - action: ALWAYS
+    rule: "Validate file uploads: check MIME type (from magic bytes, not extension), enforce size limits, and scan for malware"
+  - action: ALWAYS
+    rule: "Coerce types explicitly - never rely on implicit type coercion (JavaScript == instead of ===, parseInt without radix)"
+  - action: NEVER
+    rule: "Trust client-side validation alone - always re-validate on the server"
+  - action: NEVER
+    rule: "Include internal field names or stack traces in validation error messages returned to clients"
+  - action: NEVER
+    rule: "Validate by regex alone for complex formats (email, URLs) - use purpose-built parsers"
+  - action: PREFER
+    rule: "Parse-then-validate (parse into typed structure, then validate business rules) over validate-then-parse"
+  - action: PREFER
+    rule: "Allowlisting valid inputs over denylisting known bad inputs - new attack vectors bypass denylists"
+  - action: PREFER
+    rule: "Fail-closed validation (reject if uncertain) over fail-open (accept if uncertain)"
+
+anti_patterns:
+  - "No server-side validation, relying entirely on client-side checks that can be bypassed with browser dev tools"
+  - "Manual if/else validation chains that are verbose, error-prone, and impossible to reuse or compose"
+  - "One-error-at-a-time UX forcing users to submit forms repeatedly to discover each validation failure"
+  - "Trusting file extensions for upload validation instead of reading magic bytes to determine actual MIME type"
+  - "Using regex for email validation with patterns that reject valid addresses or accept invalid ones"
+  - "Implicit type coercion causing '0' == false and parseInt('08px') to silently produce unexpected results"
+  - "Internal error details in API responses leaking database column names, stack traces, or internal service URLs"
+
+examples:
+  zod_schema_with_transform: |
+    import { z } from "zod";
+
+    const CreateUserSchema = z.object({
+      email: z.string().email().toLowerCase().trim(),
+      name: z.string().min(1).max(100).trim(),
+      age: z.coerce.number().int().min(13).max(150),
+      role: z.enum(["user", "admin"]).default("user"),
+      tags: z.array(z.string().max(50)).max(10).default([]),
+    });
+
+    type CreateUser = z.infer<typeof CreateUserSchema>;
+
+    // Usage - returns all errors at once
+    const result = CreateUserSchema.safeParse(req.body);
+    if (!result.success) {
+      return res.status(400).json({
+        errors: result.error.issues.map((issue) => ({
+          field: issue.path.join("."),
+          message: issue.message,
+        })),
+      });
+    }
+    const user: CreateUser = result.data;
+
+  file_upload_validation: |
+    import { fileTypeFromBuffer } from "file-type";
+
+    const ALLOWED_TYPES = new Set([
+      "image/jpeg",
+      "image/png",
+      "image/webp",
+      "application/pdf",
+    ]);
+    const MAX_SIZE = 10 * 1024 * 1024; // 10 MB
+
+    async function validateUpload(
+      buffer: Buffer,
+      filename: string
+    ): Promise<{ valid: boolean; errors: string[] }> {
+      const errors: string[] = [];
+
+      if (buffer.length > MAX_SIZE) {
+        errors.push(`File exceeds maximum size of ${MAX_SIZE / 1024 / 1024}MB`);
+      }
+
+      const detected = await fileTypeFromBuffer(buffer);
+      if (!detected || !ALLOWED_TYPES.has(detected.mime)) {
+        errors.push(
+          `File type ${detected?.mime ?? "unknown"} is not allowed`
+        );
+      }
+
+      return { valid: errors.length === 0, errors };
+    }
+
+  error_response_aggregation: |
+    // Return all validation errors in a consistent format
+    {
+      "status": 400,
+      "error": "VALIDATION_ERROR",
+      "message": "Request validation failed",
+      "details": [
+        { "field": "email", "message": "Must be a valid email address" },
+        { "field": "age", "message": "Must be at least 13" },
+        { "field": "name", "message": "Required" }
+      ]
+    }
+
+context: |
+  Data validation at system boundaries is where security and reliability
+  intersect. Every input from outside your trust boundary (user input, API
+  calls, file uploads, message queues) is potentially malformed or malicious.
+  Schema validation libraries like Zod and Pydantic provide declarative,
+  composable validation that replaces fragile manual checks. The
+  parse-then-validate pattern (coined by Alexis King as "parse, don't
+  validate") ensures that once data passes validation, it carries type
+  guarantees through the rest of the system. Returning all errors at once
+  rather than one at a time dramatically improves the developer and user
+  experience.
+
+related:
+  - api-design-rest-patterns
+  - web-application-security
+
+tags:
+  - validation
+  - schema
+  - sanitization
+  - input
+  - security
+  - zod
+  - pydantic

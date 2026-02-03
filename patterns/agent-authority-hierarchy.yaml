@@ -1,0 +1,122 @@
+id: agent-authority-hierarchy
+category: patterns
+priority: 10
+updated: 2026-02-03
+
+title: Agent Authority Hierarchy & Action Irreversibility
+description: |
+  Classification system for agent authority levels, action irreversibility
+  classes, and escalation requirements ensuring appropriate oversight for
+  high-impact operations. Establishes a layered governance model where the
+  severity of an action determines the level of approval required.
+
+rules:
+  - action: ALWAYS
+    rule: "Classify actions into irreversibility tiers: irreversible (cannot undo), costly-reversible (can undo with significant effort), and reversible (easily undone)"
+  - action: ALWAYS
+    rule: "Require human approval for irreversible actions (production deployments, data deletion, payment processing, user account deletion)"
+  - action: ALWAYS
+    rule: "Implement a 4-level authority hierarchy: agent (autonomous), human (operator), institutional (team/org policy), regulatory (compliance/legal)"
+  - action: ALWAYS
+    rule: "Enforce that lower authority levels cannot override higher - agent cannot bypass institutional policy regardless of context"
+  - action: ALWAYS
+    rule: "Log the authority level that approved each action in the audit trail with full decision context"
+  - action: ALWAYS
+    rule: "Implement escalation paths - when an agent encounters an action above its authority, it must escalate rather than fail silently"
+  - action: ALWAYS
+    rule: "Default to the most restrictive authority requirement when classification is ambiguous"
+  - action: NEVER
+    rule: "Allow agents to self-classify the authority level of their own actions - classification must be external"
+  - action: NEVER
+    rule: "Allow authority escalation without explicit approval from the higher tier"
+  - action: NEVER
+    rule: "Allow agents to perform costly-reversible actions (schema migrations, bulk updates, config changes) without at least human-level authority"
+  - action: NEVER
+    rule: "Allow temporary authority grants without expiration - all elevated permissions must have a TTL"
+  - action: NEVER
+    rule: "Allow agents to grant authority to other agents - only human or institutional tiers can delegate"
+  - action: PREFER
+    rule: "Automated classification of action irreversibility based on operation patterns over manual annotation"
+  - action: PREFER
+    rule: "Time-boxed authority delegation over permanent grants - elevated permissions expire automatically"
+  - action: PREFER
+    rule: "Requiring two-agent consensus for costly-reversible actions when human approval is not immediately available"
+  - action: PREFER
+    rule: "Clear documentation of what constitutes each irreversibility class for every domain the agent operates in"
+
+anti_patterns:
+  - "Flat authority model where agents can perform any action without differentiation - treats file rename the same as data deletion"
+  - "No irreversibility classification - treating all actions as equally safe or equally dangerous"
+  - "Permanent elevated permissions that never expire - accumulated authority creates unbounded risk"
+  - "Agents self-approving their own escalation requests - defeats the purpose of the hierarchy"
+  - "No audit trail for authority decisions - unable to reconstruct why an action was permitted"
+  - "Single authority tier for all operations - no distinction between reading a file and deleting a database"
+
+examples:
+  irreversibility_classification: |
+    Irreversibility Class     | Authority Required | Examples
+    --------------------------|--------------------|-----------------------------------------
+    IRREVERSIBLE              | Human + Audit      | Production data deletion, user account
+                              |                    | removal, payment processing, key rotation
+    COSTLY_REVERSIBLE         | Human              | Schema migrations, bulk data updates,
+                              |                    | config changes, branch force-push,
+                              |                    | permission changes
+    REVERSIBLE                | Agent (autonomous) | File edits (with VCS), feature flag
+                              |                    | toggles, draft creation, log queries,
+                              |                    | read-only API calls
+
+  authority_escalation_flow: |
+    function classifyAndEscalate(agent, action) {
+      // External classification - agent does not classify its own actions
+      const classification = actionClassifier.classify(action);
+      const requiredAuthority = authorityMap[classification.irreversibility];
+
+      if (agent.authorityLevel >= requiredAuthority) {
+        auditLog.record({
+          action: action.describe(),
+          classification: classification,
+          approvedBy: agent.id,
+          authorityLevel: agent.authorityLevel,
+          timestamp: Date.now()
+        });
+        return { approved: true };
+      }
+
+      // Escalate to next tier
+      const escalation = {
+        from: agent.id,
+        action: action.describe(),
+        classification: classification,
+        requiredAuthority: requiredAuthority,
+        currentAuthority: agent.authorityLevel,
+        context: agent.getTaskContext()
+      };
+
+      return escalationQueue.submit(escalation);
+    }
+
+context: |
+  Derived from governance frameworks for autonomous agent systems. Without
+  authority hierarchy, agents operate with implicit unlimited authority - any
+  action is as permissible as any other. The irreversibility classification
+  provides the critical insight: the required oversight should be proportional
+  to the difficulty of undoing an action. Reversible actions (file edits with
+  version control) can be safely autonomous. Costly-reversible actions (schema
+  migrations) need human oversight. Irreversible actions (data deletion) require
+  the highest scrutiny. The 4-level hierarchy (agent, human, institutional,
+  regulatory) mirrors real-world governance: an individual operator cannot
+  override company policy, and company policy cannot override legal requirements.
+
+related:
+  - agent-enforcement-gates
+  - agent-adversarial-defense
+  - agent-memory-governance
+
+tags:
+  - authority
+  - hierarchy
+  - irreversibility
+  - escalation
+  - governance
+  - permissions
+  - oversight

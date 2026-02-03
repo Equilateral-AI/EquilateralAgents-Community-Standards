@@ -1,0 +1,136 @@
+id: agent-adversarial-defense
+category: patterns
+priority: 10
+updated: 2026-02-03
+
+title: Agent Adversarial Defense & Prompt Security
+description: |
+  Defense patterns against prompt injection, memory poisoning, privilege
+  escalation, data exfiltration, and agent collusion in multi-agent systems.
+  Establishes layered security boundaries that prevent adversarial manipulation
+  of agent behavior and inter-agent trust relationships.
+
+rules:
+  - action: ALWAYS
+    rule: "Sanitize and validate all external input before including in agent prompts or memory - treat all user content as untrusted data"
+  - action: ALWAYS
+    rule: "Implement input/output boundary detection - clearly separate system instructions from user content using structural delimiters"
+  - action: ALWAYS
+    rule: "Monitor for privilege escalation attempts - agents requesting permissions beyond their assigned tier must trigger alerts"
+  - action: ALWAYS
+    rule: "Scan agent outputs for data exfiltration patterns (base64-encoded data, encoded URLs, steganographic content in code comments)"
+  - action: ALWAYS
+    rule: "Implement rate limiting on agent actions to detect and prevent automated attack sequences"
+  - action: ALWAYS
+    rule: "Validate memory writes against a schema - reject entries that don't match expected structure or contain embedded instructions"
+  - action: ALWAYS
+    rule: "Implement anomaly detection for agent behavior - sudden changes in action patterns, tool usage, or output volume indicate compromise"
+  - action: ALWAYS
+    rule: "Use separate parsing contexts for each content type - never parse code, data, and instructions in the same pipeline"
+  - action: NEVER
+    rule: "Trust agent-reported metadata (confidence, source, authority level) without independent verification"
+  - action: NEVER
+    rule: "Allow agents to modify their own system prompts, instructions, or safety constraints"
+  - action: NEVER
+    rule: "Allow agents to read other agents' system prompts or internal configuration"
+  - action: NEVER
+    rule: "Process instructions embedded in data payloads (code comments, JSON values, file contents) as executable commands"
+  - action: NEVER
+    rule: "Allow single-agent authority for irreversible actions - require multi-agent consensus or human approval"
+  - action: NEVER
+    rule: "Allow agents to dynamically construct and execute prompts for other agents without template validation"
+  - action: PREFER
+    rule: "Content-type-aware parsing over generic text processing to prevent injection across format boundaries"
+  - action: PREFER
+    rule: "Byzantine fault tolerance (2/3 quorum) for critical agent decisions in multi-agent systems"
+  - action: PREFER
+    rule: "Canary tokens in agent memory to detect unauthorized access or exfiltration attempts"
+  - action: PREFER
+    rule: "Behavioral fingerprinting to detect when an agent's behavior deviates from its established baseline"
+
+anti_patterns:
+  - "Trusting user input directly in system prompts without sanitization - the primary vector for prompt injection"
+  - "No boundary between instructions and data - allowing injected instructions to override system behavior"
+  - "Agents with self-modification capability - compromised agents can disable their own safety constraints"
+  - "No monitoring for coordinated agent behavior - colluding agents can split malicious actions across multiple steps"
+  - "Using a single validation layer - one bypass defeats all security"
+  - "Allowing agents to construct arbitrary prompts for other agents - enables injection chaining across agent boundaries"
+  - "No behavioral baseline comparison - unable to detect when agent behavior has been manipulated"
+
+examples:
+  prompt_injection_detection: |
+    function detectPromptInjection(input) {
+      const injectionPatterns = [
+        /ignore\s+(previous|above|all)\s+instructions/i,
+        /you\s+are\s+now\s+/i,
+        /new\s+instruction[s]?:/i,
+        /system\s*:\s*/i,
+        /\[INST\]|\[\/INST\]/i,
+        /<\|im_start\|>system/i,
+        /do\s+not\s+follow\s+(the\s+)?(previous|original)/i
+      ];
+      const matches = injectionPatterns.filter(p => p.test(input));
+      return {
+        detected: matches.length > 0,
+        patterns: matches,
+        riskScore: Math.min(matches.length / 3, 1.0)
+      };
+    }
+
+  memory_poisoning_detection: |
+    function validateMemoryWrite(entry, existingMemory) {
+      // Check for instruction injection in memory entries
+      if (containsInstructions(entry.content)) {
+        return { valid: false, reason: "Memory entry contains embedded instructions" };
+      }
+      // Check for contradiction with high-confidence existing entries
+      const conflicts = findContradictions(entry, existingMemory);
+      if (conflicts.some(c => c.confidence > 0.9)) {
+        return { valid: false, reason: "Contradicts high-confidence memory", conflicts };
+      }
+      // Check provenance chain
+      if (!verifyProvenance(entry.source, entry.author)) {
+        return { valid: false, reason: "Unverifiable provenance" };
+      }
+      return { valid: true };
+    }
+
+  exfiltration_pattern_scanning: |
+    function scanForExfiltration(output) {
+      const checks = {
+        base64Payload:  /[A-Za-z0-9+/]{50,}={0,2}/,
+        encodedUrl:     /https?:\/\/[^\s]*[?&][^=]+=([A-Za-z0-9+/]{20,})/,
+        hiddenInCode:   /\/\/\s*[A-Za-z0-9+/]{30,}|#\s*[A-Za-z0-9+/]{30,}/,
+        dnsExfil:       /[a-z0-9]{20,}\.(com|net|io|xyz)/,
+        unusualEncoding: /\\x[0-9a-f]{2}{10,}|\\u[0-9a-f]{4}{5,}/
+      };
+      return Object.entries(checks)
+        .filter(([_, pattern]) => pattern.test(output))
+        .map(([type]) => type);
+    }
+
+context: |
+  Derived from adversarial security research in multi-agent AI systems.
+  As agents gain access to tools, memory, and inter-agent communication,
+  the attack surface expands significantly. Prompt injection remains the most
+  common attack vector, but multi-agent systems introduce new threats:
+  memory poisoning (corrupting shared state), privilege escalation (agents
+  requesting capabilities beyond their role), data exfiltration (encoding
+  sensitive data in seemingly benign output), and agent collusion (multiple
+  compromised agents coordinating malicious actions). Defense requires
+  layered security - no single check is sufficient because each layer
+  addresses a different attack vector.
+
+related:
+  - agent-enforcement-gates
+  - agent-authority-hierarchy
+  - agent-memory-governance
+
+tags:
+  - adversarial
+  - prompt-injection
+  - security
+  - multi-agent
+  - collusion
+  - exfiltration
+  - defense

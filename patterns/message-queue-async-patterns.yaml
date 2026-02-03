@@ -1,0 +1,160 @@
+id: message-queue-async-patterns
+category: patterns
+priority: 20
+updated: 2026-02-03
+
+title: Message Queue & Async Processing Patterns
+description: |
+  Patterns for reliable asynchronous processing including message queue design,
+  dead letter queues, idempotency, backpressure handling, and event-driven
+  architecture. Async processing decouples producers from consumers and absorbs
+  traffic spikes without dropping work.
+
+rules:
+  - action: ALWAYS
+    rule: "Implement idempotent message consumers - processing the same message twice must produce the same result using deduplication keys or idempotent operations"
+  - action: ALWAYS
+    rule: "Use dead letter queues (DLQ) for messages that fail processing after maximum retries - DLQs capture poison messages for investigation without blocking the queue"
+  - action: ALWAYS
+    rule: "Include a unique message ID and correlation ID in every message for tracing and deduplication - correlation ID links related messages across services"
+  - action: ALWAYS
+    rule: "Implement visibility timeout or acknowledgment-based processing - messages must not be lost if a consumer crashes mid-processing"
+  - action: ALWAYS
+    rule: "Set maximum retry counts with exponential backoff - never retry indefinitely as poison messages will block the queue and waste compute"
+  - action: ALWAYS
+    rule: "Monitor queue depth, processing latency, and DLQ size with alerts on threshold breaches - a growing queue depth indicates consumers cannot keep up"
+  - action: ALWAYS
+    rule: "Design messages to be self-contained - consumers should not need to make additional API calls to process a message, include all necessary data in the payload"
+  - action: NEVER
+    rule: "Process messages without acknowledging/deleting after successful processing - orphaned messages cause reprocessing storms when visibility timeout expires"
+  - action: NEVER
+    rule: "Use queues for synchronous request-response patterns - queues are for async fire-and-forget or eventual consistency, not blocking waits for replies"
+  - action: NEVER
+    rule: "Put large payloads directly in messages - use claim-check pattern (store payload in S3/blob storage, pass the reference URL in the message body)"
+  - action: NEVER
+    rule: "Rely on message ordering unless using FIFO queues with message group IDs - standard queues provide best-effort ordering which is not guaranteed"
+  - action: PREFER
+    rule: "At-least-once delivery with idempotent consumers over exactly-once semantics which are harder to guarantee and more expensive to implement"
+  - action: PREFER
+    rule: "Fan-out with SNS/EventBridge topics to SQS queues over point-to-point for multi-consumer patterns - adding a new consumer requires no changes to the producer"
+  - action: PREFER
+    rule: "Batch processing (receive up to 10 messages) over single-message processing for throughput-sensitive workloads - amortizes network overhead across messages"
+
+anti_patterns:
+  - "No dead letter queue - a single malformed message blocks the entire queue forever as it repeatedly fails and returns to the front"
+  - "Non-idempotent consumers processing duplicate messages - charging a customer twice because the payment message was delivered twice"
+  - "Infinite retry without backoff - a failing message consumes 100% of consumer capacity retrying every millisecond"
+  - "Large payloads in messages exceeding queue limits (256KB SQS) - causes silent message drops or serialization failures"
+  - "Synchronous request-response over queues adding latency and complexity where a simple HTTP call would suffice"
+  - "No monitoring on queue depth - thousands of unprocessed messages accumulate silently until users report missing data hours later"
+  - "Messages requiring consumers to call back to the producer for data - couples producer and consumer, negating the benefit of async processing"
+
+examples:
+  idempotent_consumer: |
+    async function processPayment(message) {
+      const { paymentId, orderId, amount } = message.body;
+
+      // Idempotency check: has this exact payment already been processed?
+      const existing = await db.payments.findByIdempotencyKey(paymentId);
+      if (existing) {
+        console.log(`Payment ${paymentId} already processed, skipping`);
+        await message.ack();  // acknowledge to remove from queue
+        return;
+      }
+
+      // Process with idempotency key stored atomically
+      await db.transaction(async (tx) => {
+        await tx.payments.create({ id: paymentId, orderId, amount, status: 'completed' });
+        await tx.orders.updateStatus(orderId, 'paid');
+      });
+
+      await message.ack();
+    }
+
+  claim_check_pattern: |
+    // Producer: store large payload in S3, send reference in message
+    async function publishLargeReport(reportData) {
+      const key = `reports/${uuidv4()}.json`;
+      await s3.putObject({
+        Bucket: 'message-payloads',
+        Key: key,
+        Body: JSON.stringify(reportData)
+      });
+
+      await sqs.sendMessage({
+        QueueUrl: QUEUE_URL,
+        MessageBody: JSON.stringify({
+          type: 'report.generated',
+          payloadRef: `s3://message-payloads/${key}`,
+          metadata: { reportId: reportData.id, generatedAt: new Date().toISOString() }
+        })
+      });
+    }
+
+    // Consumer: fetch payload from S3 using reference
+    async function processReport(message) {
+      const { payloadRef, metadata } = JSON.parse(message.Body);
+      const reportData = await fetchFromS3(payloadRef);
+      await generatePDF(reportData);
+      await message.ack();
+    }
+
+  dlq_processing_workflow: |
+    // DLQ processor: investigate and reprocess or discard failed messages
+    async function processDLQ() {
+      const messages = await sqs.receiveMessage({
+        QueueUrl: DLQ_URL,
+        MaxNumberOfMessages: 10,
+        MessageAttributeNames: ['All']
+      });
+
+      for (const msg of messages.Messages) {
+        const failureCount = msg.Attributes?.ApproximateReceiveCount;
+        const originalBody = JSON.parse(msg.Body);
+
+        // Log for investigation
+        logger.warn('DLQ message', {
+          messageId: msg.MessageId,
+          failureCount,
+          body: originalBody,
+          firstFailedAt: msg.Attributes?.SentTimestamp
+        });
+
+        // Attempt reprocessing with fixes or route to manual review
+        if (isRetryable(originalBody)) {
+          await redriveToMainQueue(originalBody);
+        } else {
+          await routeToManualReview(originalBody);
+        }
+
+        await sqs.deleteMessage({ QueueUrl: DLQ_URL, ReceiptHandle: msg.ReceiptHandle });
+      }
+    }
+
+context: |
+  Message queues are foundational infrastructure for building reliable distributed
+  systems. At-least-once delivery is the practical default because exactly-once is
+  expensive and often impossible across system boundaries - this makes idempotent
+  consumers essential. Dead letter queues prevent poison messages from blocking
+  an entire processing pipeline. The claim-check pattern keeps messages small and
+  within queue size limits while supporting arbitrarily large payloads via external
+  storage. Exponential backoff on retries prevents a transient downstream failure
+  from being amplified into a retry storm. Self-contained messages decouple
+  consumers from producers - if a consumer needs to call back to the producer
+  for data, the async boundary is in the wrong place. Fan-out via topics (SNS,
+  EventBridge) to queues enables adding new consumers without modifying producers,
+  a key extensibility pattern in event-driven architectures.
+
+related:
+  - microservices-resilience
+  - error-handling-resilience
+
+tags:
+  - message-queue
+  - async
+  - sqs
+  - rabbitmq
+  - kafka
+  - dead-letter
+  - idempotency
+  - event-driven

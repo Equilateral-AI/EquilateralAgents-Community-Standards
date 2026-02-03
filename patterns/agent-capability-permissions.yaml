@@ -1,0 +1,111 @@
+id: agent-capability-permissions
+category: patterns
+priority: 20
+updated: 2026-02-03
+
+title: Agent Capability & Permission Composition
+description: |
+  Patterns for composing and managing agent permissions using set-theoretic
+  operations, delegation chains, capability expiration, and constraint types.
+
+rules:
+  - action: ALWAYS
+    rule: "Define agent capabilities as explicit sets of (resource, action, constraint) tuples - never use implicit or inherited permissions"
+  - action: ALWAYS
+    rule: "Compute effective permissions using intersection (most restrictive) when combining capability sets for the same action"
+  - action: ALWAYS
+    rule: "Implement cascading revocation - revoking a delegator's capability automatically revokes all downstream delegations"
+  - action: ALWAYS
+    rule: "Enforce capability expiration - every granted permission must have a time-to-live"
+  - action: ALWAYS
+    rule: "Validate that delegating agents cannot grant permissions they don't themselves hold"
+  - action: ALWAYS
+    rule: "Implement 5 constraint types on capabilities: time-window, rate-limit, budget, condition, and scope-restriction"
+  - action: NEVER
+    rule: "Allow capabilities without an explicit scope - unbounded permissions are a security risk"
+  - action: NEVER
+    rule: "Allow permanent capability grants - all permissions must have an expiration or review date"
+  - action: NEVER
+    rule: "Allow agents to create capabilities that exceed their own permission set"
+  - action: PREFER
+    rule: "Fine-grained capabilities (read-specific-file) over coarse-grained ones (read-all-files)"
+  - action: PREFER
+    rule: "Deny-by-default with explicit capability grants over allow-by-default with explicit denials"
+  - action: PREFER
+    rule: "Capability delegation with attenuation - each delegation step can only narrow, never widen, permissions"
+
+anti_patterns:
+  - "Wildcard permissions granting access to everything - violates least-privilege and makes auditing impossible"
+  - "Permanent capability grants never reviewed - stale permissions accumulate and expand the attack surface"
+  - "Agents self-granting capabilities - bypasses authorization controls entirely"
+  - "No delegation chain tracking - impossible to determine who granted what to whom or to cascade revocation"
+  - "Coarse-grained roles instead of fine-grained capabilities - all-or-nothing access prevents proportional authorization"
+  - "No expiration on temporary access - short-term grants become permanent by default"
+
+examples:
+  capability_composition: |
+    function computeEffectivePermissions(agent, context) {
+      // Gather all capability sets that apply
+      const ownCapabilities = agent.capabilities;
+      const delegatedCapabilities = getDelegatedCapabilities(agent);
+      const contextConstraints = getContextConstraints(context);
+
+      // Intersection: most restrictive wins
+      let effective = intersect(ownCapabilities, delegatedCapabilities);
+      effective = applyConstraints(effective, contextConstraints);
+
+      // Remove expired capabilities
+      effective = effective.filter(cap => cap.expiresAt > Date.now());
+
+      return effective;
+    }
+
+  delegation_chain_with_attenuation: |
+    function delegateCapability(delegator, recipient, capability, constraints) {
+      // Verify delegator holds the capability
+      if (!delegator.capabilities.includes(capability)) {
+        throw new Error("Cannot delegate capability not held");
+      }
+      // Attenuation: delegated scope must be subset of delegator's scope
+      const attenuated = {
+        ...capability,
+        scope: intersectScopes(capability.scope, constraints.scope),
+        rateLimit: Math.min(capability.rateLimit, constraints.rateLimit),
+        expiresAt: Math.min(capability.expiresAt, constraints.expiresAt),
+        delegationChain: [...capability.delegationChain, delegator.id]
+      };
+      recipient.capabilities.push(attenuated);
+      registerDelegation(delegator.id, recipient.id, attenuated);
+    }
+
+  constraint_types_table: |
+    # Capability Constraint Types
+    # ─────────────────────────────────────────────────
+    # Type              Example                   Enforcement
+    # time-window       09:00-17:00 UTC           reject outside window
+    # rate-limit        10 operations per minute   queue or reject excess
+    # budget            max 1000 tokens per task   terminate at limit
+    # condition         only if tests pass         evaluate predicate
+    # scope-restriction /src/components/** only    reject out-of-scope paths
+
+context: |
+  Derived from agent governance patterns in multi-agent orchestration systems.
+  In systems where agents can delegate tasks and permissions to other agents,
+  capability composition provides a formal model for ensuring that permissions
+  are explicit, bounded, and auditable. Set-theoretic operations (intersection
+  for combining, attenuation for delegation) ensure that permissions can only
+  become more restrictive as they flow through a delegation chain. Mandatory
+  expiration prevents permission creep, and cascading revocation ensures that
+  removing a delegator's access immediately propagates to all downstream agents.
+
+related:
+  - agent-authority-hierarchy
+  - agent-trust-scoring
+
+tags:
+  - capabilities
+  - permissions
+  - delegation
+  - revocation
+  - authorization
+  - least-privilege

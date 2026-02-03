@@ -1,0 +1,133 @@
+id: documentation-adr-patterns
+category: patterns
+priority: 20
+updated: 2026-02-03
+
+title: Technical Documentation & ADR Patterns
+description: |
+  Patterns for maintaining useful technical documentation including Architecture
+  Decision Records, README standards, runbooks, and documentation-as-code
+  practices. Good documentation captures the why behind decisions and enables
+  teams to operate independently.
+
+rules:
+  - action: ALWAYS
+    rule: "Write an ADR (Architecture Decision Record) when making significant technical choices - capture context, options considered, decision, and consequences"
+  - action: ALWAYS
+    rule: "Keep ADRs immutable - if a decision is superseded, write a new ADR referencing the old one rather than editing"
+  - action: ALWAYS
+    rule: "Maintain a README with: what the project does, how to set it up, how to run it, how to test it, and how to deploy it"
+  - action: ALWAYS
+    rule: "Include runbooks for operational procedures (deployment, rollback, incident response, data recovery)"
+  - action: ALWAYS
+    rule: "Document API contracts with machine-readable specs (OpenAPI, GraphQL SDL) not just prose"
+  - action: ALWAYS
+    rule: "Keep documentation in the same repository as the code it describes - documentation drift is proportional to distance from source"
+  - action: NEVER
+    rule: "Document implementation details that change frequently - document interfaces, contracts, and decisions instead"
+  - action: NEVER
+    rule: "Write documentation that duplicates what the code already clearly expresses - document the why, not the what"
+  - action: NEVER
+    rule: "Leave TODO or placeholder sections in published documentation - either write it or remove the heading"
+  - action: PREFER
+    rule: "Diagrams (Mermaid, PlantUML) in markdown over external diagram tools that require separate access"
+  - action: PREFER
+    rule: "Short, focused documents over comprehensive monoliths - one document per concern"
+  - action: PREFER
+    rule: "Automated documentation generation for API references, type docs, and dependency graphs"
+
+anti_patterns:
+  - "No ADRs, losing the context behind technical decisions and relitigating them every few months"
+  - "Outdated READMEs with wrong setup instructions that waste hours of new developer onboarding time"
+  - "Documentation in a separate wiki that nobody reads because it is never where developers are working"
+  - "Duplicating code logic in prose that immediately goes stale when the code changes"
+  - "No runbooks, discovering operational procedures for the first time during a production incident"
+  - "Placeholder sections and TODO markers in published docs giving a false impression that documentation exists"
+
+examples:
+  adr_template: |
+    # ADR-0042: Use PostgreSQL for Order Service
+
+    ## Status
+    Accepted (2026-02-03)
+    Supersedes: ADR-0018
+
+    ## Context
+    The order service currently uses DynamoDB for storage. As order
+    queries have grown more complex (multi-table joins, aggregation
+    reports, full-text search on order notes), we are working around
+    DynamoDB's limitations with application-level joins and secondary
+    indexes that increase cost and complexity.
+
+    ## Options Considered
+    1. **Stay with DynamoDB** - Continue with application-level joins
+    2. **PostgreSQL (RDS)** - Relational model fits query patterns
+    3. **Aurora Serverless** - Auto-scaling but higher per-query cost
+
+    ## Decision
+    Migrate to PostgreSQL on RDS. The order domain is inherently
+    relational, query patterns require joins, and the team has deep
+    PostgreSQL expertise.
+
+    ## Consequences
+    - **Positive:** Complex queries become simple SQL; reduced application code
+    - **Positive:** Strong consistency model simplifies order state management
+    - **Negative:** Requires capacity planning (not serverless)
+    - **Negative:** Migration effort estimated at 3 sprints
+    - **Risk:** Must implement connection pooling (PgBouncer) for Lambda access
+
+  readme_template_sections: |
+    # Project Name
+
+    One-line description of what this project does.
+
+    ## Quick Start
+    ```bash
+    git clone <repo>
+    npm install
+    cp .env.example .env  # configure environment
+    npm run dev
+    ```
+
+    ## Architecture
+    Brief overview with a Mermaid diagram:
+    ```mermaid
+    graph LR
+      A[Client] --> B[API Gateway]
+      B --> C[Order Service]
+      C --> D[PostgreSQL]
+    ```
+
+    ## Development
+    - `npm run dev` - Start development server
+    - `npm run test` - Run test suite
+    - `npm run lint` - Check code style
+
+    ## Deployment
+    See [deployment runbook](./docs/runbooks/deployment.md).
+
+    ## ADRs
+    Architecture decisions are in [docs/adr/](./docs/adr/).
+
+context: |
+  Documentation is a force multiplier that pays dividends over time, but only
+  when it captures information that cannot be easily derived from the code
+  itself. Architecture Decision Records (ADRs) are the highest-value form of
+  documentation because they preserve the context and reasoning behind
+  decisions that would otherwise be lost when team members rotate. Runbooks
+  codify operational knowledge so that incident response does not depend on
+  tribal knowledge. Keeping documentation co-located with code in the same
+  repository ensures it stays in the developer workflow and gets reviewed
+  alongside code changes.
+
+related:
+  - code-review-standards
+  - git-workflow-patterns
+
+tags:
+  - documentation
+  - adr
+  - readme
+  - runbooks
+  - architecture
+  - docs-as-code

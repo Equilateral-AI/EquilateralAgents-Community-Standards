@@ -1,0 +1,126 @@
+id: performance-profiling-patterns
+category: patterns
+priority: 20
+updated: 2026-02-03
+
+title: Performance Profiling & Optimization Patterns
+description: |
+  Patterns for identifying and resolving performance bottlenecks including
+  profiling methodology, benchmarking, memory leak detection, and optimization
+  prioritization. The core discipline is always measuring before optimizing
+  and targeting the actual bottleneck, not the suspected one.
+
+rules:
+  - action: ALWAYS
+    rule: "Measure before optimizing - use profiling tools (Chrome DevTools, py-spy, perf, clinic.js) to identify actual bottlenecks"
+  - action: ALWAYS
+    rule: "Establish performance baselines and budgets before optimization - define what fast enough means with numbers"
+  - action: ALWAYS
+    rule: "Profile in production-like conditions - development environments hide real-world performance characteristics"
+  - action: ALWAYS
+    rule: "Benchmark with realistic data volumes - performance that works with 100 rows may fail with 100,000"
+  - action: ALWAYS
+    rule: "Check for memory leaks in long-running processes - monitor heap growth over time, not just peak usage"
+  - action: ALWAYS
+    rule: "Instrument critical paths with timing metrics (p50, p95, p99 latency) not just averages"
+  - action: NEVER
+    rule: "Optimize without profiling data - intuition about bottlenecks is wrong more often than right"
+  - action: NEVER
+    rule: "Micro-optimize code that is not on the critical path - optimize the 5% of code that consumes 95% of resources"
+  - action: NEVER
+    rule: "Sacrifice code readability for marginal performance gains - only optimize when measurements prove necessity"
+  - action: PREFER
+    rule: "Algorithmic improvements (O(n^2) to O(n log n)) over constant-factor optimizations"
+  - action: PREFER
+    rule: "Lazy loading and code splitting for frontend performance over eager loading everything"
+  - action: PREFER
+    rule: "Connection pooling and query optimization for backend performance over adding more instances"
+
+anti_patterns:
+  - "Optimizing without profiling, spending days improving code that accounts for 0.1% of total execution time"
+  - "Premature optimization of non-critical paths, adding complexity to code that runs once at startup"
+  - "Benchmarking with toy data that fits in cache, then discovering linear scans collapse at production scale"
+  - "Measuring averages instead of percentiles, hiding the fact that p99 latency is 50x worse than p50"
+  - "Ignoring memory leaks in serverless or containers, assuming restarts will mask the problem until they do not"
+  - "Sacrificing readability for nanoseconds, writing clever bitwise tricks that save microseconds but cost hours in maintenance"
+
+examples:
+  profiling_methodology: |
+    # Performance Optimization Cycle
+    # 1. MEASURE - Establish baseline with profiling data
+    # 2. IDENTIFY - Find the actual bottleneck (not the suspected one)
+    # 3. HYPOTHESIZE - Form a theory about why it is slow
+    # 4. OPTIMIZE - Make a targeted change to address the bottleneck
+    # 5. VERIFY - Measure again to confirm improvement and no regressions
+
+    # Example: Node.js profiling with clinic.js
+    npx clinic doctor -- node server.js
+    # Load test while profiling
+    npx autocannon -c 100 -d 30 http://localhost:3000/api/orders
+    # Analyze the generated flamegraph for hot paths
+
+    # Example: Python profiling with py-spy
+    py-spy record -o profile.svg -- python app.py
+    # Or attach to running process
+    py-spy top --pid 12345
+
+  performance_budget_template: |
+    # Performance Budget - Web Application
+    #
+    # Metric              | Budget    | Alert At  | Measured
+    # --------------------|-----------|-----------|----------
+    # First Contentful Paint | < 1.5s | > 2.0s   | p75
+    # Largest Contentful Paint | < 2.5s | > 3.0s | p75
+    # Time to Interactive | < 3.0s    | > 4.0s   | p75
+    # Total Bundle Size   | < 200KB   | > 250KB  | gzip
+    # API Response (p50)  | < 100ms   | > 200ms  | server
+    # API Response (p95)  | < 500ms   | > 800ms  | server
+    # API Response (p99)  | < 1000ms  | > 2000ms | server
+    # Memory (heap)       | < 512MB   | > 400MB  | peak
+    # Database Query      | < 50ms    | > 100ms  | p95
+
+  memory_leak_detection_checklist: |
+    # Memory Leak Detection Checklist
+    #
+    # 1. Take heap snapshot at startup
+    # 2. Run representative workload for 10 minutes
+    # 3. Force garbage collection (--expose-gc in Node.js)
+    # 4. Take second heap snapshot
+    # 5. Compare snapshots - look for growing object counts
+    #
+    # Common leak sources:
+    # - Event listeners not removed on cleanup
+    # - Closures capturing large objects unnecessarily
+    # - Cache without eviction policy (unbounded Map/Set)
+    # - Uncleared timers (setInterval without clearInterval)
+    # - Circular references preventing garbage collection
+
+    # Node.js example
+    node --expose-gc --inspect server.js
+    # In Chrome DevTools:
+    # Memory tab > Take heap snapshot > Run load > Take another
+    # Use "Comparison" view to find objects that grew
+
+context: |
+  Performance optimization without measurement is guesswork. Studies
+  consistently show that developer intuition about bottlenecks is wrong
+  more than 50% of the time. Profiling tools reveal the actual hot paths,
+  which are often in unexpected places like serialization, garbage
+  collection, or DNS resolution rather than the application logic developers
+  suspect. Percentile-based metrics (p95, p99) expose tail latency that
+  averages hide - a service with 100ms average latency may have a 5-second
+  p99, meaning 1 in 100 users experiences a terrible response time.
+  Performance budgets make optimization targets concrete and measurable
+  rather than vague aspirations.
+
+related:
+  - web-performance-optimization
+  - caching-strategy-patterns
+
+tags:
+  - performance
+  - profiling
+  - benchmarking
+  - optimization
+  - memory-leaks
+  - latency

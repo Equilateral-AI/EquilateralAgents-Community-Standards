@@ -1,0 +1,81 @@
+id: dependency-management-patterns
+category: patterns
+priority: 20
+updated: 2026-02-03
+
+title: Dependency Management & Supply Chain Safety
+description: |
+  Patterns for managing third-party dependencies including version pinning,
+  vulnerability scanning, license compliance, and supply chain attack prevention.
+
+rules:
+  - action: ALWAYS
+    rule: "Pin exact dependency versions in lock files (package-lock.json, poetry.lock, go.sum) and commit lock files to version control"
+  - action: ALWAYS
+    rule: "Run automated vulnerability scanning (npm audit, Dependabot, Snyk) on every PR and block merges on critical/high severity findings"
+  - action: ALWAYS
+    rule: "Review dependency license compatibility before adding new packages - GPL dependencies in MIT projects create legal risk"
+  - action: ALWAYS
+    rule: "Audit new dependencies before adoption: check maintenance activity, download counts, contributor count, and known vulnerabilities"
+  - action: ALWAYS
+    rule: "Use lock file integrity checking in CI (npm ci, not npm install) to detect tampered or inconsistent dependency trees"
+  - action: ALWAYS
+    rule: "Keep dependencies up to date with automated update PRs (Dependabot, Renovate) on a weekly cadence - stale dependencies accumulate vulnerabilities"
+  - action: NEVER
+    rule: "Install packages from untrusted registries or directly from GitHub URLs without pinning to a specific commit SHA"
+  - action: NEVER
+    rule: "Ignore npm audit or security scan findings - either fix, mitigate with overrides, or document accepted risk"
+  - action: NEVER
+    rule: "Use postinstall scripts from untrusted packages without review - they execute arbitrary code during npm install"
+  - action: NEVER
+    rule: "Add dependencies for trivial functionality (left-pad problem) - prefer standard library or small inline implementations for simple utilities"
+  - action: PREFER
+    rule: "Fewer, well-maintained dependencies over many micro-packages - each dependency is an attack surface"
+  - action: PREFER
+    rule: "Private registry mirrors or proxies (Artifactory, Verdaccio) for production builds to prevent upstream registry outages or compromises"
+
+anti_patterns:
+  - "No lock file committed - different developers get different dependency versions"
+  - "Ignoring npm audit warnings for months until a critical CVE forces emergency updates"
+  - "Adding heavy frameworks for single utility functions (importing all of lodash for one function)"
+  - "Using unpinned GitHub dependencies that can change without notice"
+  - "No license review - discovering GPL contamination after shipping"
+  - "Running npm install instead of npm ci in CI, allowing dependency drift"
+
+examples:
+  audit_workflow: |
+    # CI dependency audit step
+    npm ci                          # Install from lock file exactly
+    npm audit --audit-level=high    # Fail on high/critical vulnerabilities
+    npx license-checker --failOn "GPL-2.0;GPL-3.0"  # Fail on incompatible licenses
+
+  dependency_review: |
+    Before adding a dependency, check:
+    1. Last published: < 6 months ago?
+    2. Weekly downloads: > 10,000?
+    3. Open issues/PRs: Actively maintained?
+    4. Dependencies: How deep is the tree?
+    5. License: Compatible with your project?
+    6. Bundle size: Justified for the functionality?
+
+context: |
+  Supply chain attacks are a growing threat - compromised npm packages, typosquatting,
+  and dependency confusion attacks have affected major organizations. Every dependency
+  is code you trust to run in your environment. Lock files ensure reproducible builds
+  and detect tampering. Vulnerability scanning catches known CVEs before deployment.
+  License compliance prevents legal liability. The goal is not zero dependencies but
+  informed, minimal, and monitored dependencies.
+
+related:
+  - vulnerability-scanning-patterns
+  - secrets-management-patterns
+  - container-security-patterns
+
+tags:
+  - dependencies
+  - supply-chain
+  - security
+  - npm
+  - vulnerabilities
+  - license
+  - package-management

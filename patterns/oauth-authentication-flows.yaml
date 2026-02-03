@@ -1,0 +1,151 @@
+id: oauth-authentication-flows
+category: patterns
+priority: 10
+updated: 2026-02-03
+
+title: OAuth 2.0 & OIDC Authentication Flow Patterns
+description: |
+  Secure implementation patterns for OAuth 2.0 and OpenID Connect flows including
+  PKCE, token management, session handling, and common security pitfalls. Incorrect
+  OAuth implementation is one of the most exploited vulnerability classes in web apps.
+
+rules:
+  - action: ALWAYS
+    rule: "Use Authorization Code flow with PKCE for public clients (SPAs, mobile apps) - never use Implicit flow which exposes tokens in URL fragments"
+  - action: ALWAYS
+    rule: "Validate ID token signature, issuer (iss), audience (aud), and expiration (exp) claims before trusting - do not accept tokens without full validation"
+  - action: ALWAYS
+    rule: "Store refresh tokens server-side or in secure HttpOnly cookies - never in localStorage or sessionStorage where XSS can steal them"
+  - action: ALWAYS
+    rule: "Implement token rotation on refresh - each refresh token is single-use and issues a new refresh token, so a stolen token can only be used once"
+  - action: ALWAYS
+    rule: "Set short access token lifetimes (5-15 minutes) with refresh token renewal for longer sessions - limits the window of a stolen access token"
+  - action: ALWAYS
+    rule: "Validate the state parameter to prevent CSRF attacks on the authorization callback - compare with the value stored in the session before the redirect"
+  - action: ALWAYS
+    rule: "Validate redirect_uri against a strict allowlist - never allow open redirects after authorization which can leak authorization codes to attackers"
+  - action: NEVER
+    rule: "Embed client secrets in frontend code or mobile apps - use PKCE instead of client credentials for public clients, secrets belong only on servers"
+  - action: NEVER
+    rule: "Accept tokens from URL fragments or query parameters in production - use the authorization code exchange via back-channel POST to obtain tokens"
+  - action: NEVER
+    rule: "Skip TLS certificate validation when communicating with authorization servers - MITM attacks can intercept tokens and authorization codes"
+  - action: NEVER
+    rule: "Store access tokens in cookies without SameSite=Strict and Secure flags - vulnerable to CSRF and transmission over unencrypted connections"
+  - action: PREFER
+    rule: "Opaque access tokens for first-party APIs and JWTs only when third-party validation without introspection is required - opaque tokens are revocable instantly"
+  - action: PREFER
+    rule: "The Backend-for-Frontend (BFF) pattern for SPAs - proxy token exchange through a server-side component so tokens never reach the browser"
+  - action: PREFER
+    rule: "Centralized session management with server-side session stores over stateless JWT-only sessions for applications requiring session revocation"
+
+anti_patterns:
+  - "Using Implicit flow for SPAs - tokens exposed in URL fragments are logged in browser history, server logs, and referrer headers"
+  - "Storing refresh tokens in localStorage - a single XSS vulnerability gives attackers long-lived access to user accounts"
+  - "Not validating the state parameter on callback - allows CSRF attacks where an attacker forces a victim to authenticate as the attacker"
+  - "Client secrets in JavaScript bundles or mobile app binaries - trivially extractable by anyone who downloads the application"
+  - "Long-lived access tokens (hours/days) without refresh rotation - a stolen token grants prolonged access with no detection mechanism"
+  - "Open redirect_uri allowing attackers to receive authorization codes by registering a lookalike domain"
+  - "Accepting ID tokens without verifying signature, issuer, or audience - attacker can forge tokens or replay tokens from another application"
+
+examples:
+  pkce_flow: |
+    // Step 1: Generate PKCE code verifier and challenge
+    const codeVerifier = generateRandomString(128);  // cryptographically random
+    const codeChallenge = base64url(sha256(codeVerifier));
+
+    // Step 2: Authorization request with PKCE challenge
+    const authUrl = new URL('https://auth.example.com/authorize');
+    authUrl.searchParams.set('response_type', 'code');
+    authUrl.searchParams.set('client_id', CLIENT_ID);
+    authUrl.searchParams.set('redirect_uri', 'https://app.example.com/callback');
+    authUrl.searchParams.set('scope', 'openid profile email');
+    authUrl.searchParams.set('state', sessionState);
+    authUrl.searchParams.set('code_challenge', codeChallenge);
+    authUrl.searchParams.set('code_challenge_method', 'S256');
+
+    // Step 3: Exchange code for tokens (back-channel)
+    const tokenResponse = await fetch('https://auth.example.com/token', {
+      method: 'POST',
+      body: new URLSearchParams({
+        grant_type: 'authorization_code',
+        code: authorizationCode,
+        redirect_uri: 'https://app.example.com/callback',
+        client_id: CLIENT_ID,
+        code_verifier: codeVerifier  // proves we initiated the request
+      })
+    });
+
+  bff_token_proxy: |
+    // Backend-for-Frontend: browser never sees tokens
+    // Browser -> BFF (session cookie) -> API (access token)
+
+    // BFF login endpoint
+    app.get('/auth/callback', async (req, res) => {
+      const { code, state } = req.query;
+      validateState(state, req.session.state);
+
+      const tokens = await exchangeCodeForTokens(code);
+      req.session.accessToken = tokens.access_token;
+      req.session.refreshToken = tokens.refresh_token;
+      res.redirect('/dashboard');
+    });
+
+    // BFF API proxy
+    app.use('/api/*', async (req, res) => {
+      let accessToken = req.session.accessToken;
+      if (isExpired(accessToken)) {
+        const refreshed = await refreshTokens(req.session.refreshToken);
+        req.session.accessToken = refreshed.access_token;
+        req.session.refreshToken = refreshed.refresh_token;  // rotation
+        accessToken = refreshed.access_token;
+      }
+      const response = await fetch(`https://api.example.com${req.path}`, {
+        headers: { Authorization: `Bearer ${accessToken}` }
+      });
+      res.status(response.status).json(await response.json());
+    });
+
+  token_rotation: |
+    // Refresh token rotation: each refresh issues a new refresh token
+    async function refreshAccessToken(currentRefreshToken) {
+      const response = await fetch('https://auth.example.com/token', {
+        method: 'POST',
+        body: new URLSearchParams({
+          grant_type: 'refresh_token',
+          refresh_token: currentRefreshToken,
+          client_id: CLIENT_ID
+        })
+      });
+      const tokens = await response.json();
+      // Store NEW refresh token - old one is now invalidated
+      await storeRefreshToken(tokens.refresh_token);
+      return tokens.access_token;
+    }
+    // If an attacker replays the old refresh token, the server detects reuse
+    // and revokes the entire token family, forcing re-authentication
+
+context: |
+  OAuth 2.0 and OpenID Connect are the foundation of modern authentication but
+  their security depends entirely on correct implementation. The Implicit flow is
+  deprecated (OAuth 2.1) because it exposes tokens in URL fragments. Authorization
+  Code with PKCE is now the recommended flow for all public clients. PKCE prevents
+  authorization code interception by binding the code to a cryptographic verifier
+  only the legitimate client possesses. Refresh token rotation detects token theft
+  because a replayed token invalidates the entire family. The BFF pattern keeps
+  tokens on the server side where they cannot be stolen by XSS, making it the
+  most secure architecture for browser-based applications. Short access token
+  lifetimes limit the damage window while refresh tokens provide session continuity.
+
+related:
+  - api-authentication-security
+  - web-application-security
+
+tags:
+  - oauth
+  - oidc
+  - authentication
+  - pkce
+  - tokens
+  - session
+  - security

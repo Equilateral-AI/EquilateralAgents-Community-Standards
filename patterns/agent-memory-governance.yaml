@@ -1,0 +1,164 @@
+id: agent-memory-governance
+category: patterns
+priority: 10
+updated: 2026-02-03
+
+title: Agent Memory Write Governance & Contradiction Detection
+description: |
+  Patterns for governing agent memory writes including authority-gated access,
+  rate limiting, TTL and decay policies, contradiction detection, and memory
+  integrity validation. Ensures that shared agent memory remains trustworthy,
+  consistent, and auditable over time.
+
+rules:
+  - action: ALWAYS
+    rule: "Gate memory writes by agent role - not all agents should have write access to shared memory stores"
+  - action: ALWAYS
+    rule: "Implement rate limiting on memory writes - recommend max 10 writes per minute per agent to prevent flooding"
+  - action: ALWAYS
+    rule: "Assign TTL (time-to-live) to memory entries - context-specific knowledge should expire, only validated patterns persist indefinitely"
+  - action: ALWAYS
+    rule: "Implement confidence decay on memory entries over time - unvalidated entries lose confidence as they age"
+  - action: ALWAYS
+    rule: "Detect contradictions when new memory entries conflict with existing entries - flag for resolution rather than silently overwriting"
+  - action: ALWAYS
+    rule: "Validate memory entry structure against a schema before accepting writes - reject malformed entries"
+  - action: ALWAYS
+    rule: "Maintain provenance metadata on every memory entry: author agent, timestamp, confidence score, and evidence source"
+  - action: NEVER
+    rule: "Allow agents to delete or overwrite memory entries created by higher-authority agents"
+  - action: NEVER
+    rule: "Allow memory entries without provenance metadata - anonymous entries cannot be trusted or audited"
+  - action: NEVER
+    rule: "Allow a single agent to be both the author and sole validator of a memory entry"
+  - action: NEVER
+    rule: "Allow memory writes that bypass the contradiction detection check - even high-confidence entries can conflict"
+  - action: PREFER
+    rule: "Append-only memory with soft-delete over hard deletion to maintain complete audit trails"
+  - action: PREFER
+    rule: "Multi-agent validation for memory entries that will influence future decisions"
+  - action: PREFER
+    rule: "Explicit conflict resolution strategies (newest-wins, highest-confidence-wins, human-decides) over implicit overwriting"
+  - action: PREFER
+    rule: "Separating short-term (session) memory from long-term (persistent) memory with different governance rules and TTLs"
+
+anti_patterns:
+  - "Any agent can write anything to shared memory with no access control - memory becomes unreliable within hours"
+  - "No expiration on contextual knowledge - stale information from past sessions treated as current truth"
+  - "Silently overwriting contradictory entries - losing valuable information about conflicting observations"
+  - "No rate limiting on memory writes - a single malfunctioning agent can flood shared memory and crowd out valid entries"
+  - "Agents citing their own memory entries as independent evidence - circular reasoning that amplifies errors"
+  - "No schema validation allowing arbitrary data shapes - downstream consumers break on unexpected formats"
+
+examples:
+  memory_write_gate: |
+    function writeMemory(agent, entry, memoryStore) {
+      // Check write authority
+      if (!agent.permissions.includes('memory:write')) {
+        return { rejected: true, reason: 'Agent lacks memory write permission' };
+      }
+
+      // Rate limit check
+      const recentWrites = memoryStore.countWrites(agent.id, { minutes: 1 });
+      if (recentWrites >= 10) {
+        return { rejected: true, reason: 'Rate limit exceeded (10/min)' };
+      }
+
+      // Schema validation
+      if (!memorySchema.validate(entry)) {
+        return { rejected: true, reason: 'Entry fails schema validation' };
+      }
+
+      // Ensure provenance metadata
+      entry.provenance = {
+        author: agent.id,
+        timestamp: Date.now(),
+        confidence: entry.confidence || 0.5,
+        source: entry.evidenceSource || 'agent-observation',
+        ttl: entry.ttl || DEFAULT_TTL_HOURS * 3600 * 1000
+      };
+
+      // Contradiction detection before write
+      const conflicts = detectContradictions(entry, memoryStore);
+      if (conflicts.length > 0) {
+        return { conflicted: true, conflicts, pendingResolution: true };
+      }
+
+      memoryStore.append(entry);
+      return { accepted: true, id: entry.id };
+    }
+
+  contradiction_detection: |
+    function detectContradictions(newEntry, memoryStore) {
+      const relatedEntries = memoryStore.query({
+        topic: newEntry.topic,
+        tags: newEntry.tags,
+        active: true
+      });
+
+      return relatedEntries
+        .filter(existing => {
+          // Semantic contradiction check
+          if (existing.assertion && newEntry.assertion) {
+            return isContradictory(existing.assertion, newEntry.assertion);
+          }
+          // Value contradiction check
+          if (existing.key === newEntry.key && existing.value !== newEntry.value) {
+            return true;
+          }
+          return false;
+        })
+        .map(existing => ({
+          existingId: existing.id,
+          existingValue: existing.assertion || existing.value,
+          newValue: newEntry.assertion || newEntry.value,
+          existingConfidence: existing.provenance.confidence,
+          resolutionRequired: true
+        }));
+    }
+
+  confidence_decay_formula: |
+    function calculateDecayedConfidence(entry, currentTime) {
+      const ageHours = (currentTime - entry.provenance.timestamp) / (3600 * 1000);
+      const halfLifeHours = entry.provenance.ttl / (3600 * 1000) / 2;
+
+      // Exponential decay: confidence halves every halfLife period
+      const decayFactor = Math.pow(0.5, ageHours / halfLifeHours);
+      const decayedConfidence = entry.provenance.confidence * decayFactor;
+
+      // Floor at 0.05 - entries below this are candidates for cleanup
+      return Math.max(decayedConfidence, 0.05);
+    }
+
+    // Example: entry with confidence 0.9, TTL 24h
+    // After 12h (one half-life): 0.9 * 0.5 = 0.45
+    // After 24h (two half-lives): 0.9 * 0.25 = 0.225
+    // After 48h (four half-lives): 0.9 * 0.0625 = 0.056
+
+context: |
+  Derived from distributed systems and agent memory architecture research.
+  Shared memory in multi-agent systems faces the same challenges as distributed
+  databases: consistency, conflict resolution, and data integrity. Without
+  governance, agent memory degrades rapidly - agents write stale observations,
+  contradict each other without detection, and flood memory with low-quality
+  entries. TTL and confidence decay solve the staleness problem by ensuring
+  old unvalidated entries naturally lose influence. Contradiction detection
+  prevents silent data corruption. Rate limiting prevents any single agent
+  from dominating shared memory. Provenance tracking enables auditing and
+  trust assessment. The append-only pattern preserves history for debugging
+  and learning, even when entries are logically superseded.
+
+related:
+  - agent-adversarial-defense
+  - agent-authority-hierarchy
+  - agent-enforcement-gates
+
+tags:
+  - memory
+  - governance
+  - contradiction
+  - rate-limiting
+  - TTL
+  - decay
+  - provenance
+  - agent-safety

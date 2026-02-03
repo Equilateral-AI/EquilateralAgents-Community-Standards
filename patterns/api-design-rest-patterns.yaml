@@ -1,0 +1,104 @@
+id: api-design-rest-patterns
+category: patterns
+priority: 15
+updated: 2026-02-03
+
+title: REST API Design & Versioning Patterns
+description: |
+  Patterns for designing consistent, versioned REST APIs including resource naming,
+  pagination, error responses, rate limiting, and API documentation. Consistency
+  across endpoints reduces integration friction and support burden.
+
+rules:
+  - action: ALWAYS
+    rule: "Use plural nouns in kebab-case for resource paths - /api/user-profiles not /api/getUserProfile or /api/UserProfile"
+  - action: ALWAYS
+    rule: "Respect HTTP method semantics - GET is safe and idempotent (no side effects), PUT is idempotent (same result on retry), POST is neither safe nor idempotent"
+  - action: ALWAYS
+    rule: "Return consistent error responses with type (URI), title (human-readable), status (HTTP code), and detail (specific message) following RFC 7807 Problem Details"
+  - action: ALWAYS
+    rule: "Use cursor-based pagination over offset-based for large or frequently-updated datasets - return next_cursor, has_more, and items in response"
+  - action: ALWAYS
+    rule: "Version APIs using URL path prefix (/v1/resources) or Accept header - never break existing clients without a migration path"
+  - action: ALWAYS
+    rule: "Include rate limiting headers in all responses - X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Reset with 429 status when exceeded"
+  - action: PREFER
+    rule: "Include HATEOAS links in responses for discoverability - provide related resource URLs so clients do not need to construct URLs"
+  - action: ALWAYS
+    rule: "Support filtering, sorting, and field selection via query parameters - ?status=active&sort=-created_at&fields=id,name"
+  - action: ALWAYS
+    rule: "Return 201 Created with Location header for resource creation, 204 No Content for successful deletion"
+  - action: ALWAYS
+    rule: "Require idempotency keys (Idempotency-Key header) for POST requests that create resources or trigger side effects to enable safe retries"
+  - action: ALWAYS
+    rule: "Maintain consistent request/response envelope structure - top-level data, meta, and errors keys across all endpoints"
+  - action: ALWAYS
+    rule: "Provide OpenAPI/Swagger documentation generated from source code and validated in CI - documentation must stay in sync with implementation"
+  - action: ALWAYS
+    rule: "Set Deprecation and Sunset headers on deprecated endpoints with a minimum 6-month sunset period and migration documentation"
+  - action: PREFER
+    rule: "Use ISO 8601 format for all date/time fields in request and response bodies - 2026-02-03T12:00:00Z not Unix timestamps or locale-specific formats"
+
+anti_patterns:
+  - "Verbs in URLs like /api/getUsers or /api/createOrder - use HTTP methods to express the action, nouns for resources"
+  - "Returning 200 OK with an error message in the body instead of appropriate 4xx/5xx status codes"
+  - "Offset-based pagination on tables with frequent inserts causing skipped or duplicated records"
+  - "Breaking API changes without versioning - changing response shape or removing fields in existing endpoints"
+  - "Inconsistent error formats across endpoints - some return {error: string}, others {message: string, code: number}"
+  - "No rate limiting allowing a single client to consume all available capacity and degrade service for others"
+  - "Manually written API documentation that diverges from actual implementation within weeks of launch"
+
+examples:
+  error_response: |
+    // Consistent RFC 7807 error response
+    HTTP/1.1 422 Unprocessable Entity
+    Content-Type: application/problem+json
+
+    {
+      "type": "https://api.example.com/errors/validation",
+      "title": "Validation Error",
+      "status": 422,
+      "detail": "The 'email' field must be a valid email address",
+      "instance": "/api/v1/users",
+      "errors": [
+        { "field": "email", "message": "Invalid email format" }
+      ]
+    }
+
+  cursor_pagination: |
+    // Request
+    GET /api/v1/orders?limit=20&cursor=eyJpZCI6MTAwfQ
+
+    // Response
+    {
+      "data": [...],
+      "meta": {
+        "has_more": true,
+        "next_cursor": "eyJpZCI6MTIwfQ",
+        "total_count": 1583
+      }
+    }
+
+context: |
+  Consistent API design reduces cognitive load for consumers and support costs
+  for providers. RFC 7807 Problem Details provides a standard error format that
+  tooling can parse. Cursor-based pagination is resilient to data mutations
+  between pages unlike offset-based approaches. Idempotency keys make POST
+  requests safe to retry during network failures. Rate limiting protects
+  shared resources. API versioning via URL path is more visible and debuggable
+  than header-based versioning, though header-based keeps URLs clean. OpenAPI
+  documentation generated from source ensures accuracy. Sunset headers give
+  clients time to migrate before deprecated endpoints are removed.
+
+related:
+  - owasp-api-security
+  - api-authentication-security
+
+tags:
+  - api
+  - rest
+  - design
+  - versioning
+  - pagination
+  - error-handling
+  - documentation

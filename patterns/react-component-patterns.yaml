@@ -1,0 +1,121 @@
+id: react-component-patterns
+category: patterns
+priority: 20
+updated: 2026-02-03
+
+title: React Component Architecture Patterns
+description: |
+  Production patterns for React component design including composition, state
+  management, performance, and server-side rendering. These patterns promote
+  maintainable, testable, and performant component hierarchies.
+
+rules:
+  - action: ALWAYS
+    rule: "Favor composition over inheritance - build complex UIs by composing small, focused components rather than extending base components"
+  - action: ALWAYS
+    rule: "Single responsibility per component - each component renders one conceptual piece of UI and manages only its own concerns"
+  - action: ALWAYS
+    rule: "Use controlled components for form inputs by default - lift state to the parent and pass value/onChange props for predictable behavior"
+  - action: ALWAYS
+    rule: "Wrap expensive components in React.memo and use useMemo/useCallback only when profiling reveals actual performance issues - not preemptively"
+  - action: ALWAYS
+    rule: "Extract reusable stateful logic into custom hooks (useAuth, usePagination) rather than duplicating useState/useEffect across components"
+  - action: ALWAYS
+    rule: "Wrap component subtrees with error boundaries to prevent a single component failure from crashing the entire application"
+  - action: ALWAYS
+    rule: "Provide stable, unique key props on list items using domain IDs - never use array index as key for dynamic lists"
+  - action: ALWAYS
+    rule: "Avoid prop drilling beyond 2 levels - use React Context, composition (children/render props), or a state management library instead"
+  - action: ALWAYS
+    rule: "Clean up side effects in useEffect return functions - cancel subscriptions, abort fetch requests, clear timers"
+  - action: ALWAYS
+    rule: "Keep component files under 250 lines - extract subcomponents or hooks when a file exceeds this limit"
+  - action: PREFER
+    rule: "Use React Server Components for data fetching and static rendering; reserve 'use client' for components requiring interactivity, browser APIs, or state"
+  - action: PREFER
+    rule: "Wrap async data-fetching children in Suspense boundaries with meaningful fallback UIs to enable streaming and progressive rendering"
+  - action: ALWAYS
+    rule: "Include accessibility attributes (aria-labels, roles, keyboard handlers) in interactive components - every clickable div needs role='button' and onKeyDown"
+  - action: ALWAYS
+    rule: "Test component contracts (props in, rendered output and callbacks out) rather than internal implementation details - prefer Testing Library queries over enzyme shallow rendering"
+
+anti_patterns:
+  - "God components with 500+ lines handling layout, data fetching, state management, and business logic in one file"
+  - "Using array index as key for lists that can be reordered, filtered, or appended - causes subtle state bugs and unnecessary re-renders"
+  - "Wrapping every component in React.memo without profiling - adds memory overhead and complexity with no measurable benefit"
+  - "Prop drilling through 5+ component levels instead of using Context or composition patterns"
+  - "useEffect without cleanup for subscriptions, intervals, or event listeners - causes memory leaks and stale state"
+  - "Calling setState in useEffect without dependencies, creating infinite render loops"
+  - "Marking entire pages as 'use client' to avoid thinking about the server/client boundary - defeats the purpose of Server Components"
+
+examples:
+  composition_over_inheritance: |
+    // Bad: inheritance-style thinking
+    function BaseCard({ children }) { return <div className="card">{children}</div>; }
+    function UserCard() { return <BaseCard><UserInfo /></BaseCard>; }
+
+    // Good: composition with slots
+    function Card({ header, children, footer }) {
+      return (
+        <div className="card">
+          {header && <div className="card-header">{header}</div>}
+          <div className="card-body">{children}</div>
+          {footer && <div className="card-footer">{footer}</div>}
+        </div>
+      );
+    }
+
+    <Card header={<UserAvatar />} footer={<ActionButtons />}>
+      <UserDetails />
+    </Card>
+
+  custom_hook_extraction: |
+    // Bad: duplicated fetch logic in multiple components
+    function UserList() {
+      const [users, setUsers] = useState([]);
+      const [loading, setLoading] = useState(true);
+      useEffect(() => { fetch('/api/users').then(...) }, []);
+    }
+
+    // Good: extracted into reusable hook
+    function useApi(url) {
+      const [data, setData] = useState(null);
+      const [loading, setLoading] = useState(true);
+      const [error, setError] = useState(null);
+      useEffect(() => {
+        const controller = new AbortController();
+        fetch(url, { signal: controller.signal })
+          .then(res => res.json())
+          .then(setData)
+          .catch(setError)
+          .finally(() => setLoading(false));
+        return () => controller.abort();
+      }, [url]);
+      return { data, loading, error };
+    }
+
+    function UserList() {
+      const { data: users, loading, error } = useApi('/api/users');
+    }
+
+context: |
+  React's component model is fundamentally compositional. Components that do one
+  thing well are easier to test, reuse, and reason about. Performance optimization
+  should be measurement-driven - React.memo and useMemo add complexity and memory
+  overhead that is only justified when profiling shows a bottleneck. Server
+  Components in React 18+ shift data fetching to the server, reducing client
+  bundle size and improving initial load. Error boundaries prevent cascading
+  failures. Accessibility is not optional - components without proper ARIA
+  attributes and keyboard handling exclude users who rely on assistive technology.
+
+related:
+  - web-performance-optimization
+  - accessibility-wcag-compliance
+
+tags:
+  - react
+  - components
+  - frontend
+  - state-management
+  - performance
+  - hooks

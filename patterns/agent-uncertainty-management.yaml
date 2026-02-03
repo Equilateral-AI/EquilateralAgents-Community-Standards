@@ -1,0 +1,103 @@
+id: agent-uncertainty-management
+category: patterns
+priority: 20
+updated: 2026-02-03
+
+title: Agent Uncertainty & Confidence Management
+description: |
+  Patterns for managing agent confidence levels, belief states, evidence
+  tracking, confidence decay, and actionability thresholds to prevent
+  overconfident agent behavior.
+
+rules:
+  - action: ALWAYS
+    rule: "Assign explicit confidence levels to agent assertions and decisions - never present uncertain conclusions as facts"
+  - action: ALWAYS
+    rule: "Implement belief lifecycle states: confirmed (validated by evidence), probable (strong evidence), uncertain (mixed evidence), contested (conflicting evidence), refuted (disproven)"
+  - action: ALWAYS
+    rule: "Track supporting and opposing evidence separately - confidence is not a single number but a balance of evidence"
+  - action: ALWAYS
+    rule: "Implement confidence decay - assertions lose confidence over time without revalidation"
+  - action: ALWAYS
+    rule: "Set actionability thresholds - agents should not take consequential actions based on low-confidence beliefs"
+  - action: ALWAYS
+    rule: "Propagate uncertainty through inference chains - derived conclusions cannot be more confident than their premises"
+  - action: NEVER
+    rule: "Allow agents to take irreversible actions based on uncertain or contested beliefs"
+  - action: NEVER
+    rule: "Treat absence of counter-evidence as strong confirmation - distinguish between tested and untested assertions"
+  - action: NEVER
+    rule: "Allow confidence levels to increase without new supporting evidence"
+  - action: PREFER
+    rule: "Explicit uncertainty ranges (70-85% confident) over point estimates (77% confident)"
+  - action: PREFER
+    rule: "Multiple independent evidence sources over a single source for high-confidence classifications"
+  - action: PREFER
+    rule: "Asking for clarification over acting on ambiguous or low-confidence information"
+
+anti_patterns:
+  - "Binary confident/not-confident without gradation - loses nuance needed for proportional decision-making"
+  - "Stale confidence scores never revisited - outdated beliefs persist long after conditions have changed"
+  - "Derived conclusions more confident than source evidence - violates uncertainty propagation principles"
+  - "Treating model output probability as real-world confidence - model calibration does not equal epistemic certainty"
+  - "No actionability threshold acting on speculation - agents take consequential actions based on weak evidence"
+  - "Ignoring conflicting evidence - cherry-picking supporting data while discarding contradictions"
+
+examples:
+  belief_state_transitions: |
+    # Belief Lifecycle States
+    # ─────────────────────────────────────────────────
+    # State       Evidence Condition         Allowed Actions
+    # confirmed   validated, no conflicts    full action authority
+    # probable    strong support, minor gaps advisory + reversible actions
+    # uncertain   mixed or insufficient      read-only, flag for review
+    # contested   conflicting evidence       halt, escalate to human
+    # refuted     disproven by evidence      retract, update dependents
+    #
+    # Transitions:
+    #   uncertain -> probable   (new supporting evidence)
+    #   probable  -> confirmed  (validation + no counter-evidence)
+    #   confirmed -> contested  (new conflicting evidence found)
+    #   contested -> refuted    (counter-evidence confirmed)
+    #   any state -> uncertain  (confidence decay over time)
+
+  confidence_decay_formula: |
+    function decayConfidence(belief, currentTime) {
+      const hoursSinceValidation = (currentTime - belief.lastValidated) / 3600000;
+      const decayRate = 0.02;  // 2% per hour
+      const decayedConfidence = belief.confidence * Math.exp(-decayRate * hoursSinceValidation);
+      return Math.max(decayedConfidence, 0.1);  // floor at 10%
+    }
+
+  actionability_threshold_table: |
+    # Actionability Thresholds
+    # ─────────────────────────────────────────────────
+    # Confidence Range  Action Category
+    # 90-100%           Irreversible actions permitted
+    # 70-89%            Reversible actions permitted
+    # 50-69%            Advisory output only
+    # 30-49%            Flag for human review
+    # 0-29%             No action, log uncertainty
+
+context: |
+  Derived from agent governance patterns in multi-agent orchestration systems.
+  Overconfident agents are a significant risk in autonomous systems. When agents
+  present uncertain conclusions as facts or take irreversible actions based on
+  weak evidence, the consequences can be severe and difficult to undo. These
+  patterns enforce epistemic humility by requiring agents to explicitly track
+  confidence, decay it over time, and gate actions behind confidence thresholds.
+  The belief lifecycle ensures that conflicting evidence is surfaced rather than
+  ignored, and that derived conclusions properly propagate the uncertainty of
+  their premises.
+
+related:
+  - agent-trust-scoring
+  - agent-memory-governance
+
+tags:
+  - uncertainty
+  - confidence
+  - evidence
+  - belief-states
+  - decay
+  - actionability

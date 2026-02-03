@@ -1,0 +1,134 @@
+id: monorepo-workspace-patterns
+category: patterns
+priority: 20
+updated: 2026-02-03
+
+title: Monorepo & Workspace Management Patterns
+description: |
+  Patterns for managing monorepo workspaces including dependency management,
+  task orchestration, build caching, and package boundaries. These practices
+  enable teams to scale codebases across multiple packages while maintaining
+  fast CI and clear ownership.
+
+rules:
+  - action: ALWAYS
+    rule: "Define clear package boundaries with explicit public APIs - internal modules should not be imported across packages"
+  - action: ALWAYS
+    rule: "Use workspace-level dependency hoisting with explicit per-package overrides only when version conflicts require it"
+  - action: ALWAYS
+    rule: "Configure incremental builds and remote caching (Turborepo, Nx) - never rebuild unchanged packages"
+  - action: ALWAYS
+    rule: "Enforce dependency constraints - packages should declare their own dependencies, not rely on hoisted siblings"
+  - action: ALWAYS
+    rule: "Use changesets or conventional commits to track which packages changed for versioning and changelogs"
+  - action: ALWAYS
+    rule: "Run affected-only CI - test and build only packages impacted by the changeset, not the entire monorepo"
+  - action: NEVER
+    rule: "Allow circular dependencies between packages - use dependency graph visualization to detect and prevent"
+  - action: NEVER
+    rule: "Share TypeScript project references across unrelated packages - keep tsconfig inheritance shallow"
+  - action: NEVER
+    rule: "Publish packages with bundled node_modules - use peerDependencies for shared runtime dependencies"
+  - action: PREFER
+    rule: "Task pipelines (build depends on dependent builds completing first) over flat parallel execution"
+  - action: PREFER
+    rule: "Shared configuration packages (eslint-config, tsconfig-base) over duplicated config files"
+  - action: PREFER
+    rule: "Internal packages (not published) for shared code over copy-pasting between packages"
+
+anti_patterns:
+  - "No package boundaries leading to import spaghetti - any file imports from any package creating an unmaintainable dependency web"
+  - "Rebuilding everything on every PR because incremental builds and caching are not configured"
+  - "Circular dependencies between packages making it impossible to build or test in isolation"
+  - "Duplicated configurations across packages instead of shared config packages, leading to config drift"
+  - "Publishing packages with bundled dependencies inflating install size and causing version conflicts"
+  - "Running full CI suite on every PR instead of affected-only, wasting compute and slowing feedback loops"
+
+examples:
+  turborepo_pipeline_config: |
+    // turbo.json
+    {
+      "$schema": "https://turbo.build/schema.json",
+      "pipeline": {
+        "build": {
+          "dependsOn": ["^build"],
+          "outputs": ["dist/**", ".next/**"]
+        },
+        "test": {
+          "dependsOn": ["build"],
+          "outputs": []
+        },
+        "lint": {
+          "outputs": []
+        },
+        "dev": {
+          "cache": false,
+          "persistent": true
+        }
+      }
+    }
+
+  workspace_dependency_structure: |
+    // package.json (root)
+    {
+      "workspaces": ["packages/*", "apps/*"],
+      "devDependencies": {
+        "turbo": "^2.0.0"
+      }
+    }
+
+    // packages/ui/package.json
+    {
+      "name": "@myorg/ui",
+      "main": "./dist/index.js",
+      "types": "./dist/index.d.ts",
+      "exports": {
+        ".": "./dist/index.js",
+        "./button": "./dist/button.js"
+      },
+      "dependencies": {
+        "react": "^18.0.0"
+      }
+    }
+
+    // apps/web/package.json
+    {
+      "name": "@myorg/web",
+      "dependencies": {
+        "@myorg/ui": "workspace:*"
+      }
+    }
+
+  affected_only_ci: |
+    # GitHub Actions - run only affected packages
+    - name: Determine affected packages
+      run: npx turbo run build test --filter='...[origin/main]' --dry-run=json > affected.json
+
+    - name: Build affected
+      run: npx turbo run build --filter='...[origin/main]'
+
+    - name: Test affected
+      run: npx turbo run test --filter='...[origin/main]'
+
+context: |
+  Monorepos consolidate multiple packages or applications into a single
+  repository, enabling atomic cross-package changes, shared tooling, and
+  consistent versioning. However, without proper boundaries and build
+  orchestration, monorepos become slower and harder to maintain than
+  polyrepos. Tools like Turborepo and Nx provide task pipelines, remote
+  caching, and affected-only execution that keep monorepos fast at scale.
+  The key discipline is treating each package as an independent unit with
+  explicit dependencies and public APIs, even though they share a repository.
+
+related:
+  - git-workflow-patterns
+  - ci-cd-pipeline-patterns
+
+tags:
+  - monorepo
+  - workspace
+  - turborepo
+  - nx
+  - dependencies
+  - build-cache
+  - packages

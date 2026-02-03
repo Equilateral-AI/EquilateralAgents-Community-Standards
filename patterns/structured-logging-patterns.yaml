@@ -1,0 +1,103 @@
+id: structured-logging-patterns
+category: patterns
+priority: 20
+updated: 2026-02-03
+
+title: Structured Logging & Observability Patterns
+description: |
+  Patterns for production logging including structured JSON output, correlation
+  IDs, log levels, sensitive data redaction, and log aggregation. Good logging
+  is the difference between debugging in minutes and debugging in days.
+
+rules:
+  - action: ALWAYS
+    rule: "Emit logs as structured JSON with consistent field names - never unstructured text strings that require regex parsing for analysis"
+  - action: ALWAYS
+    rule: "Propagate correlation IDs (request ID, trace ID) across all service boundaries - include in HTTP headers, queue messages, and every log entry for distributed tracing"
+  - action: ALWAYS
+    rule: "Use consistent log levels - ERROR for failures requiring immediate action, WARN for degraded but functional state, INFO for business events and request lifecycle, DEBUG for development diagnostics"
+  - action: ALWAYS
+    rule: "Redact PII and secrets before log emission - mask emails, credit cards, tokens, passwords, and SSNs at the logger level, not as an afterthought"
+  - action: ALWAYS
+    rule: "Include standard context in every log entry - request_id, user_id, service_name, timestamp (ISO 8601), environment, and operation name"
+  - action: ALWAYS
+    rule: "Log at service boundaries - incoming requests (method, path, status, duration), outgoing calls (target, status, latency), and queue message processing (queue, message_id, outcome)"
+  - action: ALWAYS
+    rule: "Error logs must include stack traces and sufficient context to reproduce the issue - input parameters, affected entity IDs, and the operation being attempted"
+  - action: NEVER
+    rule: "Log inside hot paths like tight loops or per-item in batch processing - aggregate and log a summary after the batch completes"
+  - action: PREFER
+    rule: "Sample high-volume log events (health checks, cache hits) at a configurable rate rather than logging every occurrence - 1% sampling at 10K RPS still provides visibility"
+  - action: ALWAYS
+    rule: "Aggregate logs centrally with searchable indexing (ELK, CloudWatch Logs Insights, Datadog) - logs trapped on individual instances are useless during incidents"
+  - action: PREFER
+    rule: "Alert on error rate thresholds (error_count/total_requests > 5%) rather than individual error occurrences - reduces alert fatigue while catching real degradation"
+  - action: ALWAYS
+    rule: "Define log retention policies matching compliance requirements - 90 days hot storage for debugging, 1+ year cold storage for audit compliance"
+
+anti_patterns:
+  - "Unstructured log lines like 'Error processing user 123' that cannot be filtered, aggregated, or alerted on programmatically"
+  - "Missing correlation IDs making it impossible to trace a request across 5 microservices during incident response"
+  - "Logging passwords, API keys, or credit card numbers in plaintext - a compliance violation and security incident waiting to happen"
+  - "Using console.log or print statements in production instead of a structured logging library with level control"
+  - "Logging every cache hit in a loop processing 100K items - generating gigabytes of useless logs that obscure real issues and inflate costs"
+  - "Alerting on every individual ERROR log causing hundreds of alerts during a dependency outage instead of alerting on error rate"
+
+examples:
+  structured_log_entry: |
+    // Good: structured JSON log
+    {
+      "timestamp": "2026-02-03T14:22:31.456Z",
+      "level": "INFO",
+      "service": "order-service",
+      "request_id": "req_abc123",
+      "trace_id": "trace_xyz789",
+      "user_id": "usr_456",
+      "event": "order.created",
+      "order_id": "ord_789",
+      "total_amount": 99.99,
+      "item_count": 3,
+      "duration_ms": 145
+    }
+
+    // Bad: unstructured text
+    console.log('Order created for user 456, order 789, $99.99, 3 items, took 145ms');
+
+  pii_redaction: |
+    // Logger middleware that redacts sensitive fields
+    const sensitiveFields = ['password', 'ssn', 'credit_card', 'token'];
+
+    function redact(obj) {
+      const clean = { ...obj };
+      for (const key of Object.keys(clean)) {
+        if (sensitiveFields.some(f => key.toLowerCase().includes(f))) {
+          clean[key] = '[REDACTED]';
+        }
+      }
+      return clean;
+    }
+
+    logger.info('user.updated', redact({ userId: '123', email: 'user@example.com', password: '[REDACTED]' }));
+
+context: |
+  Structured logging transforms logs from human-readable text into machine-queryable
+  data. JSON logs can be indexed, filtered, and aggregated by any field without regex.
+  Correlation IDs are essential in distributed systems where a single user request
+  touches multiple services. Log levels control signal-to-noise ratio - ERROR should
+  wake someone up, WARN should be investigated during business hours, INFO tells the
+  system story, DEBUG is for development. PII in logs creates compliance risk under
+  GDPR, HIPAA, and PCI-DSS. Hot-path logging generates enormous volume with little
+  diagnostic value. Centralized aggregation ensures logs survive instance termination
+  and enables cross-service queries during incidents.
+
+related:
+  - slo-observability-patterns
+  - error-handling-resilience
+
+tags:
+  - logging
+  - observability
+  - structured
+  - correlation-id
+  - monitoring
+  - debugging

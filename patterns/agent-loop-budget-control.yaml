@@ -1,0 +1,154 @@
+id: agent-loop-budget-control
+category: patterns
+priority: 10
+updated: 2026-02-03
+
+title: Agent Loop Detection & Budget Control
+description: |
+  Patterns for detecting runaway agent loops, enforcing step limits, monitoring
+  rework ratios, controlling token and cost budgets, and implementing checkpoint
+  intervals. Prevents unbounded resource consumption and ensures agents make
+  measurable progress toward task completion.
+
+rules:
+  - action: ALWAYS
+    rule: "Enforce a maximum step limit for agent task execution - recommend 100 steps as default ceiling, configurable per task type"
+  - action: ALWAYS
+    rule: "Monitor rework ratio - if agent is re-editing the same files or code more than 30% of steps, trigger intervention"
+  - action: ALWAYS
+    rule: "Implement multi-dimensional budget tracking: tokens consumed, wall-clock time, API cost, and tool invocations"
+  - action: ALWAYS
+    rule: "Set budget alert thresholds at 75%, 90%, and 95% with escalating response: warn, throttle, halt"
+  - action: ALWAYS
+    rule: "Enforce checkpoint intervals - agent must save progress every N steps (recommend every 25 steps)"
+  - action: ALWAYS
+    rule: "Detect budget acceleration - if cost-per-step is increasing exponentially, halt execution and report findings"
+  - action: ALWAYS
+    rule: "Implement cooldown periods after budget threshold breaches before allowing continuation"
+  - action: ALWAYS
+    rule: "Track unique-file-touch ratio - a healthy agent touches new files as it progresses, not the same files repeatedly"
+  - action: NEVER
+    rule: "Allow agents to increase their own budget limits or step ceilings"
+  - action: NEVER
+    rule: "Allow agents to disable or bypass loop detection mechanisms"
+  - action: NEVER
+    rule: "Continue execution after budget exhaustion - halt gracefully and report what was accomplished versus what remains"
+  - action: NEVER
+    rule: "Allow infinite retry loops - set maximum retry count with exponential backoff and circuit breaker"
+  - action: PREFER
+    rule: "Progressive timeout reduction as budget depletes - shorter timeouts for individual operations near limits"
+  - action: PREFER
+    rule: "Task decomposition over long-running single-agent execution - break tasks at natural boundaries"
+  - action: PREFER
+    rule: "Reporting partial results over failing completely when budgets are exceeded"
+  - action: PREFER
+    rule: "Measuring productive output (files changed, tests passing) alongside input consumption (tokens, time)"
+
+anti_patterns:
+  - "No step limits letting agents run indefinitely - discovering only via the billing dashboard that an agent consumed thousands of API calls"
+  - "Agents stuck in edit-undo-edit cycles consuming tokens without making forward progress"
+  - "No budget tracking - discovering actual costs after the fact with no ability to intervene during execution"
+  - "Agents spawning sub-agents to circumvent their own step limits or budget constraints"
+  - "No checkpointing - losing all progress when an agent fails near the end of a long-running task"
+  - "Measuring only token consumption without tracking productive output - busy does not mean productive"
+
+examples:
+  budget_tracking_structure: |
+    const budget = {
+      limits: {
+        maxSteps: 100,
+        maxTokens: 500000,
+        maxCostUSD: 5.00,
+        maxWallClockMinutes: 30,
+        maxToolInvocations: 200
+      },
+      current: {
+        steps: 0,
+        tokens: 0,
+        costUSD: 0.0,
+        wallClockMinutes: 0,
+        toolInvocations: 0
+      },
+      thresholds: [
+        { percent: 75, action: 'warn',     triggered: false },
+        { percent: 90, action: 'throttle', triggered: false },
+        { percent: 95, action: 'halt',     triggered: false }
+      ],
+      checkpointInterval: 25,
+      lastCheckpointStep: 0
+    };
+
+  rework_detection: |
+    function detectRework(actionHistory, windowSize = 20) {
+      const recentActions = actionHistory.slice(-windowSize);
+      const fileEdits = recentActions.filter(a => a.type === 'file_edit');
+      const uniqueFiles = new Set(fileEdits.map(e => e.filePath));
+      const reworkRatio = 1 - (uniqueFiles.size / Math.max(fileEdits.length, 1));
+
+      if (reworkRatio > 0.3) {
+        return {
+          detected: true,
+          ratio: reworkRatio,
+          repeatedFiles: fileEdits
+            .map(e => e.filePath)
+            .filter((f, i, arr) => arr.indexOf(f) !== i),
+          recommendation: reworkRatio > 0.6
+            ? 'HALT: Agent is thrashing - escalate to human'
+            : 'WARN: High rework ratio - consider intervention'
+        };
+      }
+      return { detected: false, ratio: reworkRatio };
+    }
+
+  step_limit_enforcement: |
+    async function executeWithBudget(agent, task, budget) {
+      while (!task.complete && budget.current.steps < budget.limits.maxSteps) {
+        budget.current.steps++;
+
+        // Check thresholds across all dimensions
+        for (const dim of ['steps', 'tokens', 'costUSD', 'toolInvocations']) {
+          const pct = (budget.current[dim] / budget.limits[dim]) * 100;
+          for (const threshold of budget.thresholds) {
+            if (pct >= threshold.percent && !threshold.triggered) {
+              threshold.triggered = true;
+              await handleThreshold(threshold.action, agent, budget);
+            }
+          }
+        }
+
+        // Checkpoint at intervals
+        if (budget.current.steps - budget.lastCheckpointStep >= budget.checkpointInterval) {
+          await agent.saveCheckpoint();
+          budget.lastCheckpointStep = budget.current.steps;
+        }
+
+        await agent.executeNextStep();
+      }
+      return task.complete ? { success: true } : { success: false, partial: agent.getProgress() };
+    }
+
+context: |
+  Derived from operational patterns in agent orchestration frameworks. Runaway
+  agents are one of the most common and costly failure modes in agentic systems.
+  Without budget controls, a confused agent can consume thousands of dollars in
+  API calls while making no progress. Loop detection catches the specific failure
+  mode where an agent edits, reverts, and re-edits the same code repeatedly.
+  Multi-dimensional budget tracking ensures that no single resource dimension
+  can be exhausted unchecked. Checkpoint intervals protect against total loss
+  of progress when an agent is halted or fails. The key insight is that agents
+  cannot self-assess whether they are making progress - external measurement of
+  productive output is required.
+
+related:
+  - agent-enforcement-gates
+  - agent-authority-hierarchy
+  - agent-memory-governance
+
+tags:
+  - loop-detection
+  - budget
+  - cost-control
+  - rework
+  - checkpoint
+  - runaway
+  - agent-safety

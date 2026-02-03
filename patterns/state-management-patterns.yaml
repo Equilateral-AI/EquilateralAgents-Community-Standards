@@ -1,0 +1,130 @@
+id: state-management-patterns
+category: patterns
+priority: 20
+updated: 2026-02-03
+
+title: Frontend State Management Patterns
+description: |
+  Patterns for managing application state including local vs global state decisions,
+  server state synchronization, optimistic updates, and state machine design.
+  Disciplined state management prevents the most common class of frontend bugs.
+
+rules:
+  - action: ALWAYS
+    rule: "Separate server state (API data) from client state (UI state) - use dedicated tools for each (React Query/SWR for server, Zustand/Jotai for client)"
+  - action: ALWAYS
+    rule: "Implement loading, error, and success states for all async operations - never leave users without feedback on pending or failed actions"
+  - action: ALWAYS
+    rule: "Normalize nested API data into flat lookup maps for consistent access and update patterns - {byId: {}, allIds: []} avoids nested mutation bugs"
+  - action: ALWAYS
+    rule: "Colocate state as close to where it's used as possible - lift state up only when sharing is required between sibling or distant components"
+  - action: ALWAYS
+    rule: "Implement optimistic updates for user-initiated mutations with rollback on server failure - update UI immediately and revert if the server rejects"
+  - action: ALWAYS
+    rule: "Use state machines (XState or switch/case) for complex multi-step flows (checkout, onboarding, wizards) - explicitly model valid states and transitions"
+  - action: NEVER
+    rule: "Store derived data in state - compute it from source state using selectors or memoized functions (useMemo, createSelector, computed)"
+  - action: NEVER
+    rule: "Use global state for form data - keep form state local to the form component using react-hook-form, Formik, or local useState"
+  - action: NEVER
+    rule: "Mutate state directly - always produce new state immutably using spread operator, Immer, or structuredClone to ensure change detection works"
+  - action: NEVER
+    rule: "Sync the same data between multiple state stores - single source of truth per data domain prevents stale copies from diverging"
+  - action: PREFER
+    rule: "URL state for navigation-related state (filters, pagination, selected tab) so it survives page refresh and enables link sharing"
+  - action: PREFER
+    rule: "Event-driven state updates (dispatch actions/events) over direct state mutation for complex state - enables logging, undo, and time-travel debugging"
+  - action: PREFER
+    rule: "Stale-while-revalidate for server state caching - show cached data immediately while fetching fresh data in the background to minimize perceived latency"
+
+anti_patterns:
+  - "Storing everything in global state (Redux/Zustand) including form values and UI toggles - creates unnecessary coupling and re-renders across the entire app"
+  - "No loading or error states for API calls - users click buttons with no feedback, see stale data, or encounter blank screens on failure"
+  - "Deeply nested state objects that require complex spread operations to update - a single typo in nesting causes silent data loss"
+  - "Derived data stored in state alongside its source - totalPrice stored separately from cart items gets out of sync on every update"
+  - "Multiple stores holding copies of the same user data - profile store, header store, and settings store all diverge after one updates"
+  - "Direct state mutation that bypasses change detection - array.push() or object.property = value that React/Vue cannot detect"
+
+examples:
+  server_client_separation: |
+    // Server state: React Query handles caching, refetching, and stale data
+    function useUserProfile(userId) {
+      return useQuery({
+        queryKey: ['user', userId],
+        queryFn: () => api.getUser(userId),
+        staleTime: 5 * 60 * 1000,  // 5 minutes before refetch
+      });
+    }
+
+    // Client state: Zustand for UI-only state
+    const useUIStore = create((set) => ({
+      sidebarOpen: false,
+      theme: 'light',
+      toggleSidebar: () => set((s) => ({ sidebarOpen: !s.sidebarOpen })),
+    }));
+
+    // Component uses both independently
+    function Dashboard({ userId }) {
+      const { data: user, isLoading, error } = useUserProfile(userId);
+      const sidebarOpen = useUIStore((s) => s.sidebarOpen);
+      // ...
+    }
+
+  normalized_state: |
+    // Instead of nested: { users: [{ id: 1, posts: [{ id: 10, ... }] }] }
+    // Use flat normalized shape:
+    const state = {
+      users: {
+        byId: { '1': { id: '1', name: 'Alice', postIds: ['10', '11'] } },
+        allIds: ['1']
+      },
+      posts: {
+        byId: { '10': { id: '10', title: 'Hello', authorId: '1' } },
+        allIds: ['10']
+      }
+    };
+    // Update a post without touching the users structure
+    // Access: state.posts.byId[postId] - O(1) lookup, no .find() needed
+
+  optimistic_update_with_rollback: |
+    const mutation = useMutation({
+      mutationFn: (updatedTodo) => api.updateTodo(updatedTodo),
+      onMutate: async (updatedTodo) => {
+        await queryClient.cancelQueries({ queryKey: ['todos'] });
+        const previous = queryClient.getQueryData(['todos']);
+        queryClient.setQueryData(['todos'], (old) =>
+          old.map(t => t.id === updatedTodo.id ? updatedTodo : t)
+        );
+        return { previous };  // snapshot for rollback
+      },
+      onError: (err, variables, context) => {
+        queryClient.setQueryData(['todos'], context.previous);  // rollback
+      },
+      onSettled: () => {
+        queryClient.invalidateQueries({ queryKey: ['todos'] });  // refetch truth
+      },
+    });
+
+context: |
+  Frontend state management is the source of most UI bugs. The key insight is
+  that server state (data from APIs) and client state (UI toggles, themes, form
+  inputs) have fundamentally different lifecycles and should be managed with
+  different tools. Server state is owned by the backend, potentially shared across
+  users, and needs cache invalidation - React Query and SWR excel here. Client
+  state is owned by the browser session and is local to the user. Normalizing
+  API responses into flat lookup maps prevents the deeply nested spread operations
+  that cause subtle bugs. Optimistic updates provide instant feedback while
+  maintaining correctness through rollback. State machines make impossible states
+  unrepresentable, eliminating an entire class of bugs in multi-step flows.
+
+related:
+  - react-component-patterns
+  - caching-strategy-patterns
+
+tags:
+  - state-management
+  - frontend
+  - react-query
+  - zustand
+  - optimistic-updates
+  - state-machines

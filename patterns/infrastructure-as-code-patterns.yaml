@@ -1,0 +1,107 @@
+id: infrastructure-as-code-patterns
+category: patterns
+priority: 15
+updated: 2026-02-03
+
+title: Infrastructure as Code & Cloud Resource Patterns
+description: |
+  Patterns for managing cloud infrastructure declaratively including state
+  management, module composition, environment parity, drift detection, and
+  cost controls. Treat infrastructure with the same rigor as application code.
+
+rules:
+  - action: ALWAYS
+    rule: "Define infrastructure declaratively (Terraform, CloudFormation, Pulumi) - never provision resources through console clicks or imperative scripts without corresponding IaC"
+  - action: ALWAYS
+    rule: "Store state remotely with locking (S3+DynamoDB for Terraform, managed backends for others) - never commit state files to version control"
+  - action: ALWAYS
+    rule: "Compose infrastructure using versioned, reusable modules - one module per logical concern (networking, compute, database) with pinned versions"
+  - action: ALWAYS
+    rule: "Maintain environment parity by deploying dev, staging, and production from the same modules with environment-specific variable files"
+  - action: ALWAYS
+    rule: "Enforce a tagging strategy on all resources - at minimum: environment, team, service, cost-center, and managed-by tags for cost allocation and ownership"
+  - action: ALWAYS
+    rule: "Apply least-privilege IAM policies - scope permissions to specific resources and actions, never use wildcard (*) for both resource and action"
+  - action: ALWAYS
+    rule: "Store secrets in dedicated services (AWS Secrets Manager, SSM Parameter Store, HashiCorp Vault) - never in IaC files, environment variables in templates, or version control"
+  - action: ALWAYS
+    rule: "Run drift detection regularly (weekly minimum) and remediate by re-applying IaC - manual changes create configuration debt"
+  - action: ALWAYS
+    rule: "Practice immutable infrastructure - replace instances and containers rather than modifying running resources with SSH or exec"
+  - action: ALWAYS
+    rule: "Require plan/preview review before apply - no infrastructure changes without a team member reviewing the execution plan in CI"
+  - action: ALWAYS
+    rule: "Follow consistent resource naming conventions - {env}-{service}-{resource}-{identifier} (e.g., prod-api-rds-primary)"
+  - action: ALWAYS
+    rule: "Manage cross-stack dependencies explicitly through outputs/imports or data sources - never hardcode resource IDs or ARNs"
+  - action: PREFER
+    rule: "Define disaster recovery procedures as code - automate failover, backup schedules, and recovery runbooks alongside infrastructure definitions"
+  - action: PREFER
+    rule: "Run cost estimation (Infracost, AWS Cost Calculator) as part of the PR review process before provisioning new resources"
+
+anti_patterns:
+  - "ClickOps - creating resources through the cloud console without corresponding IaC, leading to undocumented snowflake infrastructure"
+  - "Committing terraform.tfstate to git - exposes secrets, causes merge conflicts, and enables state corruption from concurrent applies"
+  - "Copy-pasting entire infrastructure configurations per environment instead of parameterizing shared modules"
+  - "IAM policies with Action: * and Resource: * granting full admin access to application service roles"
+  - "Hardcoding secrets in Terraform variables, CloudFormation parameters, or user-data scripts"
+  - "SSH-ing into production instances to fix configuration instead of updating IaC and redeploying"
+  - "Deploying infrastructure changes without a plan review - terraform apply -auto-approve in production pipelines"
+
+examples:
+  module_composition: |
+    # Root module composing reusable modules
+    module "networking" {
+      source  = "git::https://github.com/org/tf-modules//networking?ref=v2.1.0"
+      env     = var.environment
+      cidr    = var.vpc_cidr
+    }
+
+    module "database" {
+      source     = "git::https://github.com/org/tf-modules//rds?ref=v1.4.0"
+      env        = var.environment
+      vpc_id     = module.networking.vpc_id
+      subnet_ids = module.networking.private_subnet_ids
+    }
+
+  tagging_strategy: |
+    # Required tags on all resources
+    locals {
+      common_tags = {
+        Environment = var.environment
+        Service     = var.service_name
+        Team        = var.team_name
+        CostCenter  = var.cost_center
+        ManagedBy   = "terraform"
+      }
+    }
+
+    resource "aws_instance" "app" {
+      ami           = data.aws_ami.app.id
+      instance_type = var.instance_type
+      tags          = merge(local.common_tags, { Name = "${var.environment}-${var.service_name}-app" })
+    }
+
+context: |
+  Infrastructure as Code brings software engineering practices to cloud resource
+  management. Declarative definitions ensure reproducibility and auditability.
+  Remote state with locking prevents concurrent modification conflicts. Module
+  composition with pinned versions enables reuse without drift. Environment parity
+  from shared modules eliminates "works in staging" failures. Immutable
+  infrastructure avoids configuration drift from manual patches. Tagging enables
+  cost visibility and ownership accountability. Plan review before apply prevents
+  accidental destruction of production resources. Drift detection catches manual
+  changes before they cause incidents.
+
+related:
+  - deployment-safety-patterns
+  - secrets-management-patterns
+
+tags:
+  - infrastructure
+  - iac
+  - terraform
+  - cloudformation
+  - cloud
+  - devops
+  - state-management

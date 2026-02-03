@@ -1,0 +1,117 @@
+id: agent-enforcement-gates
+category: patterns
+priority: 10
+updated: 2026-02-03
+
+title: Agent Enforcement Gates & Destructive Operation Protection
+description: |
+  Protection patterns for AI agent operations including destructive command
+  gating, tool allowlisting, diff size limits, and secret detection in agent
+  output. Ensures that high-risk agent actions are deterministically blocked
+  or require explicit human approval before execution.
+
+rules:
+  - action: ALWAYS
+    rule: "Gate destructive operations (rm -rf, DROP DATABASE, git push --force, kubectl delete, helm delete) behind explicit human approval"
+  - action: ALWAYS
+    rule: "Scan agent output for secrets before committing - detect API keys, tokens, private keys, AWS credentials, and passwords"
+  - action: ALWAYS
+    rule: "Enforce diff size limits - reject changes exceeding configurable thresholds without chunking into smaller reviewable pieces"
+  - action: ALWAYS
+    rule: "Validate tool calls against an allowlist before execution - unknown tools must be denied by default"
+  - action: ALWAYS
+    rule: "Log every gated operation with timestamp, agent ID, action requested, and approval status for full auditability"
+  - action: ALWAYS
+    rule: "Require schema validation on tool parameters before execution - reject malformed or unexpected parameter shapes"
+  - action: ALWAYS
+    rule: "Verify file paths in write operations are within the allowed workspace directory - prevent path traversal attacks"
+  - action: ALWAYS
+    rule: "Enforce a maximum single-operation blast radius - operations affecting more than N files or rows require escalation"
+  - action: NEVER
+    rule: "Allow agents to execute shell commands with unconstrained wildcards (rm -rf *, find / -delete)"
+  - action: NEVER
+    rule: "Allow agents to modify CI/CD pipeline configurations without human review"
+  - action: NEVER
+    rule: "Allow agents to push to protected branches (main, master, production) without gate approval"
+  - action: NEVER
+    rule: "Skip gate checks even when agent reports high confidence - gates are deterministic, not probabilistic"
+  - action: NEVER
+    rule: "Allow agents to install system-level packages or modify system configurations"
+  - action: NEVER
+    rule: "Allow agents to access or modify .env files, credentials.json, or other secret stores"
+  - action: PREFER
+    rule: "Most-restrictive-wins when multiple gates apply to the same operation"
+  - action: PREFER
+    rule: "Allowlisting over denylisting for tool access - deny by default, explicitly permit known-safe tools"
+  - action: PREFER
+    rule: "Idempotent operations over destructive ones - copy then verify before delete"
+  - action: PREFER
+    rule: "Dry-run mode for destructive operations before actual execution to preview impact"
+  - action: PREFER
+    rule: "Separating read and write permissions for agent tool access - most agents only need read"
+  - action: PREFER
+    rule: "File-level granularity over directory-level for write permissions to minimize blast radius"
+
+anti_patterns:
+  - "Running rm -rf without confirmation gate - a single misplaced path can destroy entire directories"
+  - "Allowing agents unrestricted shell access with no command filtering or sandboxing"
+  - "Trusting agent confidence scores to bypass safety gates - high confidence does not mean low risk"
+  - "No audit trail for destructive operations - unable to reconstruct what happened during an incident"
+  - "Allowlisting everything for convenience during development and forgetting to restrict for production"
+  - "Letting agents modify their own permission configuration or gate settings"
+  - "Using regex-only secret detection without entropy analysis - misses novel secret formats"
+  - "Applying the same gate threshold to all environments - dev and production need different sensitivity"
+
+examples:
+  destructive_operation_gate: |
+    async function executeWithGate(agent, operation) {
+      const classification = classifyOperation(operation);
+      if (classification.destructive) {
+        const gateResult = await requestHumanApproval({
+          agentId: agent.id,
+          operation: operation.describe(),
+          classification: classification,
+          timestamp: Date.now(),
+          dryRunOutput: await operation.dryRun()
+        });
+        auditLog.record(agent.id, operation, gateResult);
+        if (!gateResult.approved) {
+          return { blocked: true, reason: gateResult.reason };
+        }
+      }
+      return operation.execute();
+    }
+
+  secret_detection_patterns: |
+    # Detection regex patterns for common secrets
+    AWS_ACCESS_KEY:    /AKIA[0-9A-Z]{16}/
+    AWS_SECRET_KEY:    /[0-9a-zA-Z/+]{40}/
+    JWT_TOKEN:         /eyJ[a-zA-Z0-9_-]+\.eyJ[a-zA-Z0-9_-]+\.[a-zA-Z0-9_-]+/
+    PRIVATE_KEY:       /-----BEGIN (RSA |EC |DSA )?PRIVATE KEY-----/
+    GENERIC_API_KEY:   /[a-zA-Z0-9]{32,64}/  (with entropy threshold > 4.5)
+    GITHUB_TOKEN:      /gh[ps]_[a-zA-Z0-9]{36}/
+    SLACK_TOKEN:       /xox[bprs]-[a-zA-Z0-9-]+/
+
+context: |
+  Derived from agent governance patterns in multi-agent orchestration systems.
+  AI agents operating with tool access can cause significant damage through
+  destructive operations, secret leakage, or uncontrolled modifications. These
+  enforcement gates provide deterministic safety boundaries that cannot be
+  overridden by agent reasoning or confidence levels. The key principle is that
+  safety gates must be external to the agent - an agent cannot be trusted to
+  enforce its own constraints. Every destructive operation must pass through a
+  gate that is architecturally separate from the agent's decision-making process.
+
+related:
+  - agent-adversarial-defense
+  - agent-authority-hierarchy
+  - agent-loop-budget-control
+  - secrets-management-patterns
+
+tags:
+  - agent-safety
+  - enforcement
+  - destructive-operations
+  - tool-gating
+  - secret-detection
+  - permissions

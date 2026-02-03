@@ -1,0 +1,130 @@
+id: python-code-patterns
+category: patterns
+priority: 20
+updated: 2026-02-03
+
+title: Python Code Quality & Safety Patterns
+description: |
+  Patterns for production Python code including type hints, virtual environments,
+  dependency management, async patterns, and common pitfalls. Following these
+  practices prevents entire categories of bugs that are notoriously difficult
+  to debug in dynamic languages.
+
+rules:
+  - action: ALWAYS
+    rule: "Use type hints on function signatures and enable mypy or pyright strict checking in CI"
+  - action: ALWAYS
+    rule: "Use virtual environments (venv, poetry, uv) - never install packages into system Python"
+  - action: ALWAYS
+    rule: "Pin dependency versions in requirements.txt or poetry.lock - reproducible builds require exact versions"
+  - action: ALWAYS
+    rule: "Use context managers (with statements) for resource management (files, connections, locks)"
+  - action: ALWAYS
+    rule: "Use pathlib.Path over os.path for file system operations - it is safer and more readable"
+  - action: ALWAYS
+    rule: "Use dataclasses or Pydantic models for structured data over raw dicts - type safety prevents key errors"
+  - action: ALWAYS
+    rule: "Handle exceptions specifically (except ValueError) not broadly (except Exception) - never use bare except"
+  - action: NEVER
+    rule: "Use mutable default arguments (def f(items=[])): - use None and initialize inside the function"
+  - action: NEVER
+    rule: "Use eval() or exec() on untrusted input - it enables arbitrary code execution"
+  - action: NEVER
+    rule: "Use global mutable state - pass dependencies explicitly through function parameters or dependency injection"
+  - action: PREFER
+    rule: "f-strings over format() or % formatting for string interpolation"
+  - action: PREFER
+    rule: "List/dict/set comprehensions over map/filter with lambda for readability"
+  - action: PREFER
+    rule: "async/await with asyncio for I/O-bound concurrency over threading"
+
+anti_patterns:
+  - "No type hints, discovering bugs at runtime that a type checker would have caught during development"
+  - "Mutable default arguments causing shared state bugs across function calls (the list grows on every invocation)"
+  - "Bare except clauses swallowing all errors including KeyboardInterrupt and SystemExit"
+  - "Global mutable state making testing impossible without monkeypatching and causing unpredictable side effects"
+  - "requirements.txt without pinned versions, causing builds to break when a transitive dependency releases a breaking change"
+  - "String concatenation in loops creating O(n^2) performance instead of using join() or f-strings"
+
+examples:
+  pydantic_model_with_validation: |
+    from pydantic import BaseModel, Field, field_validator
+    from datetime import datetime
+
+    class CreateOrderRequest(BaseModel):
+        customer_id: str = Field(..., min_length=1)
+        items: list[OrderItem] = Field(..., min_length=1)
+        delivery_date: datetime
+
+        @field_validator("delivery_date")
+        @classmethod
+        def must_be_future(cls, v: datetime) -> datetime:
+            if v <= datetime.now():
+                raise ValueError("delivery_date must be in the future")
+            return v
+
+    # Usage - raises ValidationError with all errors at once
+    order = CreateOrderRequest(**request_data)
+
+  async_http_client_with_cleanup: |
+    import httpx
+    from contextlib import asynccontextmanager
+
+    @asynccontextmanager
+    async def get_client():
+        async with httpx.AsyncClient(
+            timeout=httpx.Timeout(30.0),
+            limits=httpx.Limits(max_connections=100),
+        ) as client:
+            yield client
+
+    async def fetch_user(user_id: str) -> User:
+        async with get_client() as client:
+            response = await client.get(f"/api/users/{user_id}")
+            response.raise_for_status()
+            return User(**response.json())
+
+  context_manager_database: |
+    from contextlib import contextmanager
+    from typing import Generator
+    import psycopg2
+
+    @contextmanager
+    def get_db_connection() -> Generator[psycopg2.extensions.connection, None, None]:
+        conn = psycopg2.connect(DATABASE_URL)
+        try:
+            yield conn
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
+        finally:
+            conn.close()
+
+    # Usage - connection is always properly closed
+    with get_db_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT * FROM users WHERE id = %s", (user_id,))
+            row = cur.fetchone()
+
+context: |
+  Python's dynamic nature and permissive syntax make it easy to write code
+  that works in development but fails unpredictably in production. Type hints
+  with strict checking catch type errors before runtime. Virtual environments
+  prevent dependency conflicts between projects. Context managers ensure
+  resources are properly cleaned up even when exceptions occur. Pydantic
+  models replace fragile dictionary access with validated, typed structures.
+  These patterns collectively transform Python from a scripting language into
+  a production-grade platform.
+
+related:
+  - clean-code-principles
+  - error-handling-resilience
+
+tags:
+  - python
+  - type-hints
+  - pydantic
+  - async
+  - virtual-environment
+  - safety

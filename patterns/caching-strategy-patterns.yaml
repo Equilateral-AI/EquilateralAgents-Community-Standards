@@ -1,0 +1,106 @@
+id: caching-strategy-patterns
+category: patterns
+priority: 20
+updated: 2026-02-03
+
+title: Caching Strategy & Invalidation Patterns
+description: |
+  Patterns for implementing caching at application, CDN, and database layers
+  including cache invalidation strategies, TTL policies, and cache stampede
+  prevention. Effective caching dramatically improves latency and reduces load.
+
+rules:
+  - action: ALWAYS
+    rule: "Use cache-aside (lazy loading) as the default strategy - read from cache first, on miss fetch from source and populate cache, return result"
+  - action: ALWAYS
+    rule: "Set TTL on all cache entries - never cache indefinitely as stale data accumulates and memory grows unbounded"
+  - action: ALWAYS
+    rule: "Invalidate or update cache on writes - use write-through (update cache synchronously with DB) for consistency or write-behind (async) for performance"
+  - action: ALWAYS
+    rule: "Prevent cache stampedes when popular keys expire - use mutex/singleflight locks, probabilistic early expiry, or background refresh before TTL"
+  - action: PREFER
+    rule: "Implement multi-layer caching hierarchy - L1 in-process memory (fastest, smallest), L2 distributed cache like Redis (shared, larger), L3 CDN (edge, static assets)"
+  - action: ALWAYS
+    rule: "Design cache keys with a version prefix for bulk invalidation - v2:users:{id}:profile allows invalidating all v1 keys by deploying with v2 prefix"
+  - action: ALWAYS
+    rule: "Degrade gracefully when cache is unavailable - fall back to the source of truth with increased latency rather than returning errors"
+  - action: PREFER
+    rule: "Warm caches proactively for predictable traffic patterns - pre-populate before known traffic spikes (marketing campaigns, product launches)"
+  - action: ALWAYS
+    rule: "Set correct HTTP cache headers - Cache-Control for freshness, ETag for conditional requests, Last-Modified for time-based validation"
+  - action: ALWAYS
+    rule: "Plan CDN invalidation strategy before deployment - use versioned asset URLs (content hash in filename) over cache purge for static assets"
+  - action: ALWAYS
+    rule: "Monitor cache hit/miss ratios and alert on significant drops - a falling hit ratio indicates key design issues or traffic pattern changes"
+  - action: NEVER
+    rule: "Cache user-specific or session-specific data in shared caches without proper key isolation - risk of serving one user's data to another"
+
+anti_patterns:
+  - "Caching without TTL causing stale data to persist indefinitely - users see outdated prices, inventory, or permissions"
+  - "Cache stampede on popular key expiry - thousands of concurrent requests all miss cache and hammer the database simultaneously"
+  - "Caching database query results by SQL string rather than semantic key - minor query reformatting causes cache misses for identical data"
+  - "No fallback when Redis is down - entire application returns 500 errors instead of slower responses from the database"
+  - "Caching error responses or empty results with long TTL - a transient database failure gets cached and served for hours"
+  - "Using the same TTL for all cache entries regardless of data volatility - pricing data and user avatars have very different freshness requirements"
+
+examples:
+  cache_aside_with_stampede_prevention: |
+    async function getUserProfile(userId) {
+      const cacheKey = `v1:users:${userId}:profile`;
+      const cached = await redis.get(cacheKey);
+      if (cached) return JSON.parse(cached);
+
+      // Singleflight: only one concurrent request fetches from DB
+      const lockKey = `lock:${cacheKey}`;
+      const acquired = await redis.set(lockKey, '1', 'NX', 'EX', 5);
+
+      if (!acquired) {
+        // Another request is fetching - wait and retry from cache
+        await sleep(100);
+        return getUserProfile(userId);
+      }
+
+      try {
+        const profile = await db.users.findById(userId);
+        await redis.setex(cacheKey, 300, JSON.stringify(profile));
+        return profile;
+      } finally {
+        await redis.del(lockKey);
+      }
+    }
+
+  http_cache_headers: |
+    // Immutable static assets (hashed filenames)
+    Cache-Control: public, max-age=31536000, immutable
+
+    // API responses - short cache with revalidation
+    Cache-Control: private, max-age=60, must-revalidate
+    ETag: "a1b2c3d4"
+
+    // Never cache sensitive data
+    Cache-Control: no-store
+
+context: |
+  Caching is one of the most impactful performance optimizations but introduces
+  data consistency challenges. Cache-aside is the safest default because the
+  application controls when stale data is acceptable. TTLs prevent unbounded
+  staleness. Cache stampedes occur when a popular key expires and many requests
+  simultaneously attempt to regenerate it, overwhelming the backend - prevention
+  via locking or early refresh is essential for high-traffic systems. Multi-layer
+  caching puts frequently accessed data progressively closer to the user. HTTP
+  cache headers control browser and CDN caching behavior. Versioned asset URLs
+  eliminate the need for CDN purge during deployments. Monitoring hit ratios
+  validates that caching is working as intended.
+
+related:
+  - web-performance-optimization
+  - database-design-patterns
+
+tags:
+  - caching
+  - redis
+  - cdn
+  - performance
+  - invalidation
+  - ttl
+  - stampede

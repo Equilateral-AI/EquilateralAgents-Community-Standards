@@ -1,0 +1,118 @@
+id: docker-container-optimization
+category: patterns
+priority: 20
+updated: 2026-02-03
+
+title: Docker Container Build & Optimization Patterns
+description: |
+  Patterns for building efficient, secure Docker containers including multi-stage
+  builds, layer optimization, image scanning, and runtime configuration. Smaller
+  images deploy faster, have fewer vulnerabilities, and reduce attack surface.
+
+rules:
+  - action: ALWAYS
+    rule: "Use multi-stage builds to separate build dependencies from runtime - final image should only contain what's needed to run the application"
+  - action: ALWAYS
+    rule: "Pin base image versions with SHA256 digests in production - never use :latest tags which are mutable and cause non-reproducible builds"
+  - action: ALWAYS
+    rule: "Run containers as non-root user - create a dedicated user in the Dockerfile with USER instruction after installing dependencies"
+  - action: ALWAYS
+    rule: "Use .dockerignore to exclude build artifacts, node_modules, .git, .env, and test files from build context - reduces context size and prevents secret leakage"
+  - action: ALWAYS
+    rule: "Scan images for vulnerabilities before pushing to registry using Trivy, Snyk, or Grype - fail CI pipeline on critical/high severity findings"
+  - action: ALWAYS
+    rule: "Order Dockerfile instructions from least to most frequently changing to maximize layer cache hits - OS deps before app deps before source code"
+  - action: NEVER
+    rule: "Store secrets in Docker images or Dockerfile ENV/ARG instructions - use runtime secret injection via environment variables, mounted files, or secret managers"
+  - action: NEVER
+    rule: "Install development dependencies in production images - no devDependencies, no build tools, no compilers unless required at runtime"
+  - action: NEVER
+    rule: "Use ADD when COPY suffices - ADD has implicit tar extraction and URL fetching behavior that introduces unexpected side effects"
+  - action: NEVER
+    rule: "Run apt-get/apk without cleaning cache in the same layer - leftover package cache bloats image size by hundreds of megabytes"
+  - action: PREFER
+    rule: "Distroless or Alpine base images over full OS images for smaller attack surface - distroless images contain only the application runtime with no shell or package manager"
+  - action: PREFER
+    rule: "COPY --from for multi-stage artifact extraction over intermediate volumes - explicitly copy only the built artifacts needed in the final stage"
+  - action: PREFER
+    rule: "Health checks in Dockerfile (HEALTHCHECK instruction) for orchestrator integration - Kubernetes and Docker Compose use these to determine container readiness"
+
+anti_patterns:
+  - "Using :latest tag for base images causing builds to break unpredictably when upstream images change"
+  - "Running containers as root - a container escape vulnerability gives the attacker root on the host"
+  - "Single-stage builds including compilers, build tools, and source code in the production image - 2GB image instead of 200MB"
+  - "Secrets baked into image layers via ENV, ARG, or COPY - anyone with image access can extract them from layer history"
+  - "No .dockerignore causing .git directory (hundreds of MB) and .env files (secrets) to be sent as build context"
+  - "Installing packages in separate RUN commands without cleanup - each layer retains its full cache, compounding image size"
+
+examples:
+  multistage_node_build: |
+    # Stage 1: Build
+    FROM node:20-alpine AS builder
+    WORKDIR /app
+    COPY package*.json ./
+    RUN npm ci --production=false
+    COPY src/ ./src/
+    COPY tsconfig.json ./
+    RUN npm run build
+
+    # Stage 2: Production
+    FROM node:20-alpine@sha256:a1b2c3d4...
+    WORKDIR /app
+    RUN addgroup -S appgroup && adduser -S appuser -G appgroup
+    COPY --from=builder /app/dist ./dist
+    COPY --from=builder /app/node_modules ./node_modules
+    COPY package*.json ./
+    RUN npm prune --production
+    USER appuser
+    EXPOSE 3000
+    HEALTHCHECK --interval=30s --timeout=3s CMD wget -qO- http://localhost:3000/health || exit 1
+    CMD ["node", "dist/index.js"]
+
+  optimized_layer_ordering: |
+    # Least changing -> most changing for cache efficiency
+    FROM python:3.12-slim
+
+    # 1. System dependencies (rarely change)
+    RUN apt-get update && apt-get install -y --no-install-recommends \
+        libpq-dev \
+      && rm -rf /var/lib/apt/lists/*
+
+    # 2. Python dependencies (change occasionally)
+    COPY requirements.txt .
+    RUN pip install --no-cache-dir -r requirements.txt
+
+    # 3. Application code (changes frequently)
+    COPY src/ ./src/
+
+  nonroot_user_setup: |
+    # Create non-root user before switching
+    RUN groupadd -r appgroup && useradd -r -g appgroup -d /app -s /sbin/nologin appuser
+    RUN chown -R appuser:appgroup /app
+    USER appuser
+
+context: |
+  Docker image optimization directly impacts deployment speed, security posture,
+  and infrastructure cost. Multi-stage builds eliminate build-time dependencies
+  from production images, often reducing size by 80% or more. Pinning base images
+  by SHA256 digest ensures reproducible builds even when tags are re-pushed.
+  Running as non-root follows the principle of least privilege and limits the blast
+  radius of container escape vulnerabilities. Layer ordering matters because Docker
+  invalidates all layers after a changed layer - putting frequently changing source
+  code last means dependency layers are cached across builds. Image scanning catches
+  known CVEs in base images and dependencies before they reach production. Distroless
+  images from Google contain only the runtime with no shell, reducing attack surface
+  to the absolute minimum.
+
+related:
+  - container-security-patterns
+  - deployment-safety-patterns
+
+tags:
+  - docker
+  - containers
+  - optimization
+  - multi-stage
+  - security
+  - images
+  - devops
