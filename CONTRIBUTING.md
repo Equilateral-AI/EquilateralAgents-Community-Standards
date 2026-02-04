@@ -104,10 +104,6 @@ Each rule in the `rules` array has:
 | `rule` | Yes | The actionable directive as a quoted string |
 | `applies_to` | No | Array of glob patterns limiting which files this rule applies to |
 
-## Schema Reference
-
-Full schema documentation: [SCHEMA.yaml](https://github.com/Equilateral-AI/equilateral-standards-yaml/blob/main/SCHEMA.yaml)
-
 ## Validation
 
 Before submitting, validate your YAML:
